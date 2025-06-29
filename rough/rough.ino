@@ -30,7 +30,7 @@ float mixAmount = 0.5; // Wet/dry mix
 
 // === Audio Objects ===
 AudioInputI2S          i2sIn;            // Input from Teensy Audio Shield
-AudioEffectDelay       delay1;
+extern AudioEffectDelay delay1;
 AudioFilterStateVariable filter1;
 AudioPlayQueue         queueL, queueR;
 AudioPlayQueue         cleanQueueL, cleanQueueR;
