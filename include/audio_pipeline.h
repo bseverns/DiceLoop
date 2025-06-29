@@ -3,6 +3,8 @@
 
 #include <Audio.h>
 
+extern AudioEffectDelay delay1;
+
 void setupAudioPipeline();
 void processAudioQueues();
 float processDirt(float sample);
