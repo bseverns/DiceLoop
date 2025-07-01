@@ -1,5 +1,6 @@
 #include "audio_pipeline.h"
 #include "Arduino.h"
+#include "controls.h"
 
 // === Audio Objects ===
 AudioInputI2S          i2sIn;
@@ -19,8 +20,6 @@ AudioConnection patchCord5(delay1, 0, queueL, 0);
 AudioConnection patchCord6(delay1, 1, queueR, 0);
 AudioConnection patchCord7(limiter1, 0, i2sOut, 0);
 AudioConnection patchCord8(limiter1, 1, i2sOut, 1);
-
-float mixAmount = 0.5;  // Externally updated from control logic
 
 float processDirt(float sample) {
   const int crushBits = 4;
