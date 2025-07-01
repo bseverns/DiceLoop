@@ -1,3 +1,5 @@
+// Interface for reading hardware controls and exposing
+// the resulting global parameters used by the audio engine.
 #ifndef CONTROLS_H
 #define CONTROLS_H
 

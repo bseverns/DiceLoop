@@ -1,3 +1,8 @@
+// Audio processing pipeline. Handles delay line, filtering and mixing
+// between the clean and "dirty" signals. Key functions:
+//   - setupAudioPipeline() : initialises the audio objects
+//   - processAudioQueues() : mixes clean and dirty buffers
+//   - processDirt()        : applies bit crushing
 #include "audio_pipeline.h"
 #include "Arduino.h"
 
@@ -23,6 +28,7 @@ AudioConnection patchCord8(limiter1, 1, i2sOut, 1);
 float mixAmount = 0.5;  // Externally updated from control logic
 
 float processDirt(float sample) {
+  // Bit-crush the incoming sample to introduce dirt/noise
   const int crushBits = 4;
   int crushed = int(sample * (1 << crushBits));
   float crushedSample = float(crushed) / (1 << crushBits);
@@ -33,11 +39,13 @@ float processDirt(float sample) {
 
 void processAudioQueues() {
   if (queueL.available() && cleanQueueL.available()) {
+    // Mix left channel from clean and dirty delay buffers
     audio_block_t *dirty = queueL.readBuffer();
     audio_block_t *clean = cleanQueueL.readBuffer();
     for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
       float c = (float)clean->data[i] / 32768.0f;
       float d = (float)dirty->data[i] / 32768.0f;
+      // Apply dirt and blend with clean signal
       d = processDirt(d);
       float mixed = (1.0f - mixAmount) * c + mixAmount * d;
       mixed = constrain(mixed, -1.0f, 1.0f);
@@ -48,11 +56,13 @@ void processAudioQueues() {
   }
 
   if (queueR.available() && cleanQueueR.available()) {
+    // Mix right channel from clean and dirty delay buffers
     audio_block_t *dirty = queueR.readBuffer();
     audio_block_t *clean = cleanQueueR.readBuffer();
     for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
       float c = (float)clean->data[i] / 32768.0f;
       float d = (float)dirty->data[i] / 32768.0f;
+      // Apply dirt and blend with clean signal
       d = processDirt(d);
       float mixed = (1.0f - mixAmount) * c + mixAmount * d;
       mixed = constrain(mixed, -1.0f, 1.0f);
@@ -64,12 +74,15 @@ void processAudioQueues() {
 }
 
 void setupAudioPipeline() {
+  // Reserve audio memory buffers
   AudioMemory(60);
 
+  // Configure delay and filter defaults
   delay1.delay(0, 200);
   filter1.frequency(500);
   filter1.resonance(0.7);
 
+  // Basic limiter settings to keep level in check
   limiter1.attack(5);
   limiter1.release(100);
   limiter1.hold(50);

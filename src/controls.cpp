@@ -1,3 +1,5 @@
+// Reads pots and buttons and updates global parameters
+// controlling the delay and chaos behaviour.
 #include "controls.h"
 #include "audio_pipeline.h"
 #include "ui.h"
@@ -22,14 +24,18 @@ int noiseAmount = 20;
 int density = 5;
 
 void setupControls() {
+  // Configure buttons and random source pin
   pinMode(reseedButtonPin, INPUT_PULLUP);
   pinMode(resetButtonPin, INPUT_PULLUP);
   pinMode(randomSourcePin, OUTPUT);
   analogWriteFrequency(randomSourcePin, 25000);
+
+  // Seed RNG from an unconnected analog pin
   randomSeed(analogRead(randomSourcePin));
 }
 
 void updateControl() {
+  // Check reseed button to increase chaos level
   if (digitalRead(reseedButtonPin) == LOW) {
     delay(50);
     if (!reseedButtonState) {
@@ -47,6 +53,7 @@ void updateControl() {
     reseedButtonState = false;
   }
 
+  // Check reset button to clear chaos
   if (digitalRead(resetButtonPin) == LOW) {
     delay(50);
     if (!resetButtonState) {
@@ -61,6 +68,7 @@ void updateControl() {
     resetButtonState = false;
   }
 
+  // Read pots and map them to parameter ranges
   int potDelayValue = analogRead(potDelayPin);
   delay1.delay(0, map(potDelayValue, 0, 1023, 1, 300));
 
@@ -71,6 +79,7 @@ void updateControl() {
   density = map(analogRead(potDensityPin), 0, 1023, 0, 100);
   mixAmount = map(analogRead(potMixPin), 0, 1023, 0, 100) / 100.0;
 
+  // Output debug information over serial
   Serial.print("Delay: "); Serial.print(potDelayValue);
   Serial.print(" | Feedback: "); Serial.print(feedback);
   Serial.print(" | Noise: "); Serial.print(noiseAmount);

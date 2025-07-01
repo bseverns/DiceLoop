@@ -1,3 +1,5 @@
+// Definitions for the audio processing pipeline. Provides setup
+// and buffer mixing utilities used by the main firmware.
 #ifndef AUDIO_PIPELINE_H
 #define AUDIO_PIPELINE_H
 
