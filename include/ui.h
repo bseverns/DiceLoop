@@ -1,3 +1,4 @@
+// Simple LED bar UI helpers
 #ifndef UI
 #define UI
 
