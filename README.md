@@ -30,6 +30,10 @@ The firmware exposes several parameters, as defined in `controls.cpp`:
 - **Mix** &ndash; blends between the clean and dirty signals.
 - **Reseed / Reset buttons** &ndash; randomise or clear the chaos values.
 
+The *noise amount* determines how harshly the delayed signal is bit crushed,
+while *density* sets the probability that a sample will be glitched. Higher
+values for either parameter make the delay sound more distorted and chaotic.
+
 ## Building and Uploading
 This project uses PlatformIO. Build with:
 ```

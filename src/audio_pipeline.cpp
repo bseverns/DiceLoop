@@ -34,13 +34,26 @@ AudioConnection patchCord10(limiter1, 1, i2sOut, 1);
 float mixAmount = 0.5f;
 
 float processDirt(float sample) {
-  // Bit-crush the incoming sample to introduce dirt/noise
-  const int crushBits = 4;
-  int crushed = int(sample * (1 << crushBits));
-  float crushedSample = float(crushed) / (1 << crushBits);
-  if (crushedSample > 0.8) crushedSample = 0.8;
-  if (crushedSample < -0.8) crushedSample = -0.8;
-  return crushedSample;
+  // Apply glitch only on a percentage of samples defined by `density`.
+  if (random(100) >= density) {
+    return sample;
+  }
+
+  // Map noiseAmount (0-60) to a reduction in bit depth. Higher values
+  // mean fewer bits and therefore harsher crushing.
+  int crushBits = 8 - noiseAmount / 10; // range roughly 8..2
+  if (crushBits < 2) crushBits = 2;
+  int steps = 1 << crushBits;
+
+  int crushed = int(sample * steps);
+  float crushedSample = float(crushed) / steps;
+
+  // Inject random noise scaled by noiseAmount to add fuzziness
+  float noise = ((float)random(-32768, 32767) / 32767.0f) * (noiseAmount / 100.0f);
+  float result = crushedSample + noise;
+
+  result = constrain(result, -1.0f, 1.0f);
+  return result;
 }
 
 void processAudioQueues() {
