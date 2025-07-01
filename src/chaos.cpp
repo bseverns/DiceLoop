@@ -1,5 +1,6 @@
 #include "chaos.h"
 #include <Arduino.h>
+#include "ui.h"
 
 void setupChaos() {
   // Placeholder for any future chaos LFO/init logic

@@ -1,5 +1,6 @@
 #include "audio_pipeline.h"
 #include "Arduino.h"
+#include "ui.h"
 
 // === Audio Objects ===
 AudioInputI2S          i2sIn;
