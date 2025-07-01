@@ -31,6 +31,8 @@ AudioConnection patchCord8(delay1, 1, queueR, 0);
 AudioConnection patchCord9(limiter1, 0, i2sOut, 0);
 AudioConnection patchCord10(limiter1, 1, i2sOut, 1);
 
+float mixAmount = 0.5f;
+
 float processDirt(float sample) {
   // Bit-crush the incoming sample to introduce dirt/noise
   const int crushBits = 4;
