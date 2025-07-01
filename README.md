@@ -2,8 +2,9 @@
 
 ## Overview
 teensyDee2 implements a chaotic delay effect for the **Teensy 4.0** microcontroller with the
-official Audio Shield. It mixes a clean signal with a noisy, density-modulated delay
-line to produce unstable, glitchy echoes. Two push buttons let you reseed or reset
+official Audio Shield. It mixes a clean signal with a noisy, density‑modulated delay
+line to produce unstable, glitchy echoes. The amount of bit‑crushing and how often
+glitches occur are shaped by the *noise amount* and *density* controls. Two push buttons let you reseed or reset
 the random parameters while five pots control the effect in real time.
 
 ## Hardware Requirements
@@ -25,8 +26,10 @@ and [`src/ui.cpp`](src/ui.cpp).
 The firmware exposes several parameters, as defined in `controls.cpp`:
 - **Delay time** &ndash; sets the delay length in milliseconds.
 - **Feedback** &ndash; adjusts how much of the delayed signal is fed back.
-- **Noise amount** &ndash; controls bit‑crushing/noise applied to the feedback path.
-- **Density** &ndash; governs how often noisy glitches are added.
+- **Noise amount** &ndash; sets the intensity of the bit‑crush and noise added
+  to the delay line.
+- **Density** &ndash; controls the probability that a sample will be glitched,
+  effectively adjusting how frequently dirt is injected.
 - **Mix** &ndash; blends between the clean and dirty signals.
 - **Reseed / Reset buttons** &ndash; randomise or clear the chaos values.
 
