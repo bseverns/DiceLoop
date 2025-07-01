@@ -17,7 +17,6 @@ const int maxChaosLevel = 8;
 bool reseedButtonState = false;
 bool resetButtonState = false;
 
-float mixAmount = 0.5;
 int noiseAmount = 20;
 int density = 5;
 

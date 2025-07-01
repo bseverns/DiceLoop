@@ -4,7 +4,6 @@
 void setupControls();
 void updateControl();
 
-extern float mixAmount;
 extern int noiseAmount;
 extern int density;
 
