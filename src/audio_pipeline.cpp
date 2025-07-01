@@ -15,16 +15,21 @@ AudioPlayQueue         queueL, queueR;
 AudioPlayQueue         cleanQueueL, cleanQueueR;
 AudioEffectEnvelope    limiter1;
 AudioOutputI2S         i2sOut;
+AudioMixer4           feedbackMixer;
+
+float feedbackAmount = 0.0f;
 
 // === Audio Connections ===
 AudioConnection patchCord1(i2sIn, 0, filter1, 0);
-AudioConnection patchCord2(filter1, 0, delay1, 0);
-AudioConnection patchCord3(filter1, 0, cleanQueueL, 0);
-AudioConnection patchCord4(filter1, 0, cleanQueueR, 0);
-AudioConnection patchCord5(delay1, 0, queueL, 0);
-AudioConnection patchCord6(delay1, 1, queueR, 0);
-AudioConnection patchCord7(limiter1, 0, i2sOut, 0);
-AudioConnection patchCord8(limiter1, 1, i2sOut, 1);
+AudioConnection patchCord2(filter1, 0, feedbackMixer, 0);
+AudioConnection patchCord3(delay1, 0, feedbackMixer, 1);
+AudioConnection patchCord4(feedbackMixer, 0, delay1, 0);
+AudioConnection patchCord5(filter1, 0, cleanQueueL, 0);
+AudioConnection patchCord6(filter1, 0, cleanQueueR, 0);
+AudioConnection patchCord7(delay1, 0, queueL, 0);
+AudioConnection patchCord8(delay1, 1, queueR, 0);
+AudioConnection patchCord9(limiter1, 0, i2sOut, 0);
+AudioConnection patchCord10(limiter1, 1, i2sOut, 1);
 
 float processDirt(float sample) {
   // Bit-crush the incoming sample to introduce dirt/noise
@@ -80,6 +85,9 @@ void setupAudioPipeline() {
   delay1.delay(0, 200);
   filter1.frequency(500);
   filter1.resonance(0.7);
+
+  feedbackMixer.gain(0, 1.0f);
+  feedbackMixer.gain(1, feedbackAmount);
 
   // Basic limiter settings to keep level in check
   limiter1.attack(5);
