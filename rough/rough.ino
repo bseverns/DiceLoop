@@ -90,8 +90,8 @@ void processAudioQueues() {
   }
 }
 
-void updateLEDBar() {
-  byte ledPattern = 0b11111111 >> (8 - buttonPressCount);
+void updateLEDBar(int level) {
+  byte ledPattern = 0b11111111 >> (8 - level);
   digitalWrite(ledLatchPin, LOW);
   shiftOut(ledDataPin, ledClockPin, MSBFIRST, ledPattern);
   digitalWrite(ledLatchPin, HIGH);
@@ -118,7 +118,7 @@ void setup() {
   limiter1.hold(50);
 
   randomSeed(analogRead(randomSourcePin));
-  updateLEDBar();
+  updateLEDBar(buttonPressCount);
 }
 
 void updateControl() {
@@ -133,7 +133,7 @@ void updateControl() {
       noiseAmount = constrain(noiseAmount, 20, 60);
       density = constrain(density, 5, 100);
       randomSeed(analogRead(randomSourcePin));
-      updateLEDBar();
+      updateLEDBar(buttonPressCount);
     }
   } else {
     reseedButtonState = false;
@@ -147,7 +147,7 @@ void updateControl() {
       noiseAmount = 20;
       density = 5;
       randomSeed(analogRead(randomSourcePin));
-      updateLEDBar();
+      updateLEDBar(buttonPressCount);
     }
   } else {
     resetButtonState = false;

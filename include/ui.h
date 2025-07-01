@@ -3,6 +3,6 @@
 #define UI
 
 void setupUI();
-void updateLEDBar();
+void updateLEDBar(int level);
 
 #endif
