@@ -72,7 +72,8 @@ void updateControl() {
   delay1.delay(0, map(potDelayValue, 0, 1023, 1, 300));
 
   int potFeedbackValue = analogRead(potFeedbackPin);
-  float feedback = map(potFeedbackValue, 0, 1023, 0, 100) / 100.0;
+  feedbackAmount = map(potFeedbackValue, 0, 1023, 0, 100) / 100.0;
+  feedbackMixer.gain(1, feedbackAmount);
 
   noiseAmount = map(analogRead(potNoiseAmountPin), 0, 1023, 0, 60);
   density = map(analogRead(potDensityPin), 0, 1023, 0, 100);
@@ -80,7 +81,7 @@ void updateControl() {
 
   // Output debug information over serial
   Serial.print("Delay: "); Serial.print(potDelayValue);
-  Serial.print(" | Feedback: "); Serial.print(feedback);
+  Serial.print(" | Feedback: "); Serial.print(feedbackAmount);
   Serial.print(" | Noise: "); Serial.print(noiseAmount);
   Serial.print(" | Density: "); Serial.print(density);
   Serial.print(" | Mix: "); Serial.println(mixAmount);

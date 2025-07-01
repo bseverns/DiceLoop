@@ -24,7 +24,7 @@ and [`src/ui.cpp`](src/ui.cpp).
 ## Features
 The firmware exposes several parameters, as defined in `controls.cpp`:
 - **Delay time** &ndash; sets the delay length in milliseconds.
-- **Feedback** &ndash; adjusts how much of the delayed signal is fed back.
+- **Feedback** (`feedbackAmount`) &ndash; sets how much of the delayed signal is routed back to the delay input.
 - **Noise amount** &ndash; controls bit‑crushing/noise applied to the feedback path.
 - **Density** &ndash; governs how often noisy glitches are added.
 - **Mix** &ndash; blends between the clean and dirty signals.

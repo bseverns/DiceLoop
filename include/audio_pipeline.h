@@ -12,8 +12,10 @@ extern AudioPlayQueue queueL, queueR;
 extern AudioPlayQueue cleanQueueL, cleanQueueR;
 extern AudioEffectEnvelope limiter1;
 extern AudioOutputI2S i2sOut;
+extern AudioMixer4 feedbackMixer;
 
 extern float mixAmount;
+extern float feedbackAmount;
 
 void setupAudioPipeline();
 void processAudioQueues();
