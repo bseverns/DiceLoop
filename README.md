@@ -1,55 +1,58 @@
-# teensyDee2 - Chaos Delay
+# teensyDee2 – Chaos Delay for the Restless
 
-## Overview
-teensyDee2 implements a chaotic delay effect for the **Teensy 4.0** microcontroller with the
-official Audio Shield. It mixes a clean signal with a noisy, density-modulated delay
-line to produce unstable, glitchy echoes. Two push buttons let you reseed or reset
-the random parameters while five pots control the effect in real time.
+This project straps a chaotic delay line onto a **Teensy 4.0** and dares you to
+feed it audio. Clean tones go in, fractured echoes come out. Every knob twist
+and button jab nudges the randomness, so you're never standing in the same river
+twice. Use it to learn how real-time DSP works, or just to make your synth sound
+like it fell down the stairs.
 
-## Hardware Requirements
-- Teensy 4.0
-- PJRC Audio Shield
-- Five potentiometers wired to:
-  - A0 &ndash; delay time
-  - A1 &ndash; feedback
-  - A3 &ndash; noise amount
-  - A4 &ndash; density
-  - A5 &ndash; wet/dry mix
-- Buttons on pins **8** (reseed) and **7** (reset)
-- LED bar driven from pins **2**, **3**, and **4**
+## Gear Checklist
+- **Teensy 4.0** with the PJRC Audio Shield
+- **Five pots** wired like so:
+  - `A0` – delay time
+  - `A1` – feedback
+  - `A3` – noise amount (bit‑crusher intensity)
+  - `A4` – density (how often the glitches strike)
+  - `A5` – wet/dry mix
+- **Two buttons**:
+  - Pin `8` – reseed the chaos
+  - Pin `7` – reset to calm
+- **LED bar** driven through a shift register on pins `2`, `3`, and `4`
 
-Exact assignments match the constants in [`src/controls.cpp`](src/controls.cpp)
-and [`src/ui.cpp`](src/ui.cpp).
+Pin assignments live in `src/controls.cpp` and `src/ui.cpp` so you can swap
+hardware without spelunking the whole codebase.
 
-## Features
-The firmware exposes several parameters, as defined in `controls.cpp`:
-- **Delay time** &ndash; sets the delay length in milliseconds.
-- **Feedback** (`feedbackAmount`) &ndash; sets how much of the delayed signal is routed back to the delay input.
-- **Noise amount** &ndash; controls bit‑crushing/noise applied to the feedback path.
-- **Density** &ndash; governs how often noisy glitches are added.
-- **Mix** &ndash; blends between the clean and dirty signals.
-- **Reseed / Reset buttons** &ndash; randomise or clear the chaos values.
+## Sonic Mayhem Controls
+These parameters are polled each loop and shoved straight into the audio path:
+- **Delay time** – milliseconds of echo stored in `AudioEffectDelay`
+- **Feedback** – gain fed from the delay output back to its input
+- **Noise amount** – number of bits lopped off when crunching the feedback
+- **Density** – percentage chance a sample gets mangled
+- **Mix** – blend between the untouched and the trashed signals
+- **Reseed** – bump up the chaos level and reseed the RNG
+- **Reset** – clear the chaos and start clean
 
-The *noise amount* determines how harshly the delayed signal is bit crushed,
-while *density* sets the probability that a sample will be glitched. Higher
-values for either parameter make the delay sound more distorted and chaotic.
+`src/audio_pipeline.cpp` handles the mixing and bit‑crushing while
+`src/controls.cpp` maps the knobs and buttons to those globals. It's all plain
+C++ and Arduino APIs—poke around and hack it.
 
-## Building and Uploading
-This project uses PlatformIO. Build with:
+## Build & Flash
+Built with [PlatformIO](https://platformio.org/). From the repo root:
+
+```sh
+pio run          # compile
+pio run -t upload  # flash it to the board
 ```
-pio run
-```
-Upload the compiled firmware to the Teensy with:
-```
-pio run -t upload
-```
-Settings for the Teensy 4.0 are defined in [`platform.ini`](platform.ini).
 
-## Source Layout
-- `src/` &ndash; main firmware files (`main.cpp`, audio pipeline, controls, UI)
-- `include/` &ndash; headers shared across the project
-- `rough/` &ndash; early prototype sketch kept for reference (optional)
+`platform.ini` already targets the Teensy 4.0, so the above is enough to get
+code onto the hardware.
 
-## License / Contributing
-No explicit license is provided. Use at your own risk and feel free to send
-improvements via pull requests.
+## Repo Tour
+- `src/` – firmware sources: `main.cpp`, `audio_pipeline.cpp`, `controls.cpp`,
+  `ui.cpp`, `chaos.cpp`
+- `include/` – headers shared across those files
+- `rough/` – early Arduino sketch kept for historical kicks
+
+## Contributing / License
+No explicit license. Consider it public domain punk: use, abuse, and send PRs if
+you make it scream louder.
