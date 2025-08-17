@@ -1,23 +1,25 @@
 # teensyDee2 – Chaos Delay for the Restless
 
-This project straps a chaotic delay line onto a **Teensy 4.0** and dares you to
+This project straps a chaotic delay line onto a **Teensy 4.0** board and dares you to
 feed it audio. Clean tones go in, fractured echoes come out. Every knob twist
 and button jab nudges the randomness, so you're never standing in the same river
 twice. Use it to learn how real-time DSP works, or just to make your synth sound
 like it fell down the stairs.
 
 ## Gear Checklist
-- **Teensy 4.0** with the PJRC Audio Shield
-- **Five pots** wired like so:
+- **Teensy 4.0** with the PJRC Audio Shield with input and outputs wired
+- **Five 10k pots** wired like so:
   - `A0` – delay time
   - `A1` – feedback
   - `A3` – noise amount (bit‑crusher intensity)
   - `A4` – density (how often the glitches strike)
   - `A5` – wet/dry mix
-- **Two buttons**:
+- **Two momentary buttons**:
   - Pin `8` – reseed the chaos
   - Pin `7` – reset to calm
 - **LED bar** driven through a shift register on pins `2`, `3`, and `4`
+
+  ***gear diagrams soon***
 
 Pin assignments live in `src/controls.cpp` and `src/ui.cpp` so you can swap
 hardware without spelunking the whole codebase.
