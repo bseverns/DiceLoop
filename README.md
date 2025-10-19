@@ -1,4 +1,4 @@
-# teensyDee2 – Chaos Delay for the Restless
+# DiceLoop – Chaos Delay for the Restless
 
 This project straps a chaotic delay line onto a **Teensy 4.0** board and dares you to
 feed it audio. Clean tones go in, fractured echoes come out. Every knob twist
