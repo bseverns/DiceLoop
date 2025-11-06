@@ -111,3 +111,15 @@ void updateControl() {
   Serial.print(" | Mix: "); Serial.println(mixAmount);
 }
 
+#ifdef __CPPCHECK__
+// See src/audio_pipeline.cpp for the rationale. The helper keeps cppcheck from
+// flagging our public control hooks as unused when it inspects this file solo.
+[[maybe_unused]] static void __cppcheck_controls_reference() {
+  setupControls();
+  updateControl();
+  updateLEDBar(0);
+}
+[[maybe_unused]] static const auto __cppcheck_controls_anchor =
+    (__cppcheck_controls_reference(), 0);
+#endif
+
