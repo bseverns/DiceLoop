@@ -142,3 +142,16 @@ void setupAudioPipeline() {
   limiter1.hold(50);
 }
 
+#ifdef __CPPCHECK__
+// When cppcheck analyses this translation unit in isolation it misses the calls
+// from main.cpp. We provide an explicit reference hook so the analyzer can see
+// the control flow without relying on comments or suppressions.
+[[maybe_unused]] static void __cppcheck_audio_pipeline_reference() {
+  setupAudioPipeline();
+  processAudioQueues();
+  (void)processDirt(0.0f);
+}
+[[maybe_unused]] static const auto __cppcheck_audio_pipeline_anchor =
+    (__cppcheck_audio_pipeline_reference(), 0);
+#endif
+

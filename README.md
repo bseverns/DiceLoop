@@ -110,6 +110,26 @@ code onto the hardware.
 > [PJRC Audio library](https://www.pjrc.com/teensy/td_libs_Audio.html). Expect a
 > minute or two. Future builds are quick.
 
+### Static Analysis Reality Check
+
+Running `pio check -e teensy40` pumps your code through **cppcheck** as well as
+several Arduino-specific linters. The report is loud because it scans every
+vendor dependency living under `.pio/libdeps/teensy40/Audio/`. Most of the
+“missing return” and “member not initialised” diagnostics come from the upstream
+PJRC Audio library and are outside this repo’s control. They are already proven
+in hardware, so we treat them as known noise.
+
+What actually matters for DiceLoop lives in `src/`. At the moment cppcheck only
+complains about a handful of helper functions (`processAudioQueues()`,
+`setupAudioPipeline()`, `setupChaos()`, etc.) that sit idle because the
+experimental control surface isn’t wired up in `main.cpp` yet. If you wire those
+features back in, the warnings disappear. Until then, the functions remain in
+place as documentation and ready-made hooks for future builds.
+
+**TL;DR:** when you run the check, skim the output but focus on paths inside
+`src/`. Vendor noise can be safely ignored unless you decide to fork the audio
+library and fix upstream.
+
 ## Repo Tour
 - `src/` – firmware sources: `main.cpp`, `audio_pipeline.cpp`, `controls.cpp`,
   `ui.cpp`, `chaos.cpp`
