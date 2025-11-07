@@ -203,9 +203,10 @@ command.
 > module) targets the older Kinetis parts, so we ship an `extra_script`
 > (`scripts/disable_audio_adc.py`) that snips it out before PlatformIO wastes
 > cycles compiling code we never call. The Teensyduino toolchain bundles a
-> modern Audio library that already speaks IMXRT, so pinning
-> `paulstoffregen/Audio@^1.3.1` in `platformio.ini` keeps CI and local builds in
-> lockstep with PJRC's latest fixes. If you crave the breadboard-friendly
+> modern Audio library that already speaks IMXRT, so we lean on the copy PJRC
+> ships with Teensyduino instead of yanking an older, Kinetis-only archive from
+> the PlatformIO registry. Keeping the dependency list short means CI and local
+> builds share the exact toolchain PJRC tests. If you crave the breadboard-friendly
 > on-chip ADC, reach for a Teensy 3.x or port the driver to i.MXRT and ditch the
 > script.
 
