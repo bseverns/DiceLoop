@@ -95,11 +95,7 @@ There *is* an ADC in the loop—it just sits on the Teensy Audio Shield instead 
 on the microcontroller. `AudioControlSGTL5000 audioShield` is now part of the
 global rig inside `src/audio_pipeline.cpp`, and `setupAudioPipeline()` wakes the
 codec, flips the input to **line in**, dials a sane gain, and leaves you with a
-low-noise stereo feed ready for the chaos engine. The Teensy 4.0’s built-in ADC
-is still tethered to a half-baked PJRC driver aimed at Kinetis-era silicon, so
-we disable that module during the build (see the note in the flashing section).
-If you really want to jam a guitar straight into the microcontroller, grab a
-Teensy 3.x or port the ADC driver forward.
+low-noise stereo feed ready for the chaos engine.
 
 ## Control Map & Chaos Knob Lore
 
@@ -218,17 +214,6 @@ pio run -t upload  # flash it to the board
 code onto the hardware.
 
 ### Continuous Integration Safety Net
-
-The repo now sports a GitHub Actions workflow at `.github/workflows/build.yml`
-that mirrors the `pio run` build every time you push or open a PR. It installs
-PlatformIO on a fresh Ubuntu runner, primes the cache for the toolchain and
-third-party libraries, and refuses to let unbuildable firmware land in `main`.
-
-If you fork the project, swap `<your-github-handle>` in the status badge above
-for your account or org name so the badge tracks your fork. Want to run the CI
-against a feature branch before it exists? Smash the **Run workflow** button on
-GitHub thanks to the `workflow_dispatch` trigger and watch the build spin up on
-command.
 
 > **Note:** All of the real analog-to-digital work happens inside the SGTL5000
 > codec on the Teensy Audio Shield. `setupAudioPipeline()` now explicitly wakes
