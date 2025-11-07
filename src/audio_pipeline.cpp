@@ -122,7 +122,9 @@ float nextTremoloGain(float densityNorm) {
 float processDirt(float sample) {
   // Apply glitch only on a percentage of samples defined by `density`. The rest
   // sail through untouched so the delay never loses its sense of pulse.
-  if (random(100) >= density) {
+  long glitchRoll = random(100L);
+  long densityThreshold = static_cast<long>(density);
+  if (glitchRoll >= densityThreshold) {
     return sample;
   }
 
