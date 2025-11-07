@@ -37,6 +37,7 @@ AudioRecordQueue       cleanQueueL, cleanQueueR;
 AudioPlayQueue         outputQueueL, outputQueueR;
 AudioOutputI2S         i2sOut;
 audio_compat::Mixer4 feedbackMixer;
+AudioControlSGTL5000   audioShield;
 
 // `feedbackAmount` mirrors the front-panel feedback pot and is shared with the
 // controls module. It is applied as gain on `feedbackMixer` input 1.
@@ -229,6 +230,15 @@ void setupAudioPipeline() {
   // Reserve audio memory buffers. Each block equals 128 samples, so 60 blocks
   // gives the delay ample breathing room without starving the mixer.
   AudioMemory(60);
+
+  // Wake the SGTL5000 codec on the Teensy Audio Shield. This is the actual ADC
+  // front-end we use for line-level signals. The Teensy 4.0's on-chip ADC stays
+  // parked—its driver in PJRC's library still targets the older Kinetis chips,
+  // so we lean on the shield's rock-solid converters instead.
+  audioShield.enable();
+  audioShield.inputSelect(AUDIO_INPUT_LINEIN);
+  audioShield.lineInLevel(10);  // Unity-ish gain, tweak to taste.
+  audioShield.volume(0.7f);     // Leave headroom for hot synths/pedals.
 
   // Configure delay and filter defaults. `delay1.delay(0, x)` sets tap 0 (left)
   // to x milliseconds. The right channel uses the library default and is
