@@ -18,7 +18,7 @@
 //                        queueL/queueR
 //                              │
 //                              ▼
-//                         limiter1 → i2sOut
+//                   outputQueueL/R → i2sOut
 //
 // The helper functions in this file set up the graph and then manually mix the
 // queue buffers so we can sprinkle in probabilistic bit crushing.
@@ -32,9 +32,9 @@
 AudioInputI2S          i2sIn;
 AudioEffectDelay       delay1;
 AudioFilterStateVariable filter1;
-AudioPlayQueue         queueL, queueR;
-AudioPlayQueue         cleanQueueL, cleanQueueR;
-AudioEffectEnvelope    limiter1;
+AudioRecordQueue       queueL, queueR;
+AudioRecordQueue       cleanQueueL, cleanQueueR;
+AudioPlayQueue         outputQueueL, outputQueueR;
 AudioOutputI2S         i2sOut;
 AudioMixer4           feedbackMixer;
 
@@ -51,8 +51,8 @@ AudioConnection patchCord5(filter1, 0, cleanQueueL, 0);
 AudioConnection patchCord6(filter1, 0, cleanQueueR, 0);
 AudioConnection patchCord7(delay1, 0, queueL, 0);
 AudioConnection patchCord8(delay1, 1, queueR, 0);
-AudioConnection patchCord9(limiter1, 0, i2sOut, 0);
-AudioConnection patchCord10(limiter1, 1, i2sOut, 1);
+AudioConnection patchCord9(outputQueueL, 0, i2sOut, 0);
+AudioConnection patchCord10(outputQueueR, 0, i2sOut, 1);
 
 // Ratio of dirty (post-delay) to clean (pre-delay) signal. 0 = dry, 1 = fully
 // crushed chaos.
@@ -167,9 +167,9 @@ void processAudioQueues() {
   if (chaosModulatorsEnabled()) {
     float modFeedback =
         constrain(feedbackAmount + chaosSnapshot.feedbackOffset, 0.0f, 0.99f);
-    feedbackMixer.gain(1, modFeedback);
+    setFeedbackGain(1, modFeedback);
   } else {
-    feedbackMixer.gain(1, feedbackAmount);
+    setFeedbackGain(1, feedbackAmount);
   }
 
   if (leftReady) {
@@ -178,34 +178,48 @@ void processAudioQueues() {
     // ±1.0f. We convert to floats for clarity then convert back.
     audio_block_t *dirty = queueL.readBuffer();
     audio_block_t *clean = cleanQueueL.readBuffer();
-    for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
-      float c = (float)clean->data[i] / 32768.0f;
-      float d = (float)dirty->data[i] / 32768.0f;
-      // Apply dirt and blend with clean signal.
-      d = processDirt(d);
-      float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
-      mixed = constrain(mixed, -1.0f, 1.0f);
-      clean->data[i] = (int16_t)(mixed * 32767.0f);
+    audio_block_t *outBlock = outputQueueL.getBuffer();
+    if (!outBlock) {
+      queueL.freeBuffer();
+      cleanQueueL.freeBuffer();
+    } else {
+      for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
+        float c = static_cast<float>(clean->data[i]) / 32768.0f;
+        float d = static_cast<float>(dirty->data[i]) / 32768.0f;
+        // Apply dirt and blend with clean signal.
+        d = processDirt(d);
+        float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
+        mixed = constrain(mixed, -1.0f, 1.0f);
+        outBlock->data[i] = static_cast<int16_t>(mixed * 32767.0f);
+      }
+      outputQueueL.playBuffer(outBlock);
+      queueL.freeBuffer();
+      cleanQueueL.freeBuffer();
     }
-    limiter1.input(clean, 0);
-    queueL.freeBuffer();
   }
 
   if (rightReady) {
     // Repeat the same dance for the right channel.
     audio_block_t *dirty = queueR.readBuffer();
     audio_block_t *clean = cleanQueueR.readBuffer();
-    for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
-      float c = (float)clean->data[i] / 32768.0f;
-      float d = (float)dirty->data[i] / 32768.0f;
-      // Apply dirt and blend with clean signal.
-      d = processDirt(d);
-      float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
-      mixed = constrain(mixed, -1.0f, 1.0f);
-      clean->data[i] = (int16_t)(mixed * 32767.0f);
+    audio_block_t *outBlock = outputQueueR.getBuffer();
+    if (!outBlock) {
+      queueR.freeBuffer();
+      cleanQueueR.freeBuffer();
+    } else {
+      for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
+        float c = static_cast<float>(clean->data[i]) / 32768.0f;
+        float d = static_cast<float>(dirty->data[i]) / 32768.0f;
+        // Apply dirt and blend with clean signal.
+        d = processDirt(d);
+        float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
+        mixed = constrain(mixed, -1.0f, 1.0f);
+        outBlock->data[i] = static_cast<int16_t>(mixed * 32767.0f);
+      }
+      outputQueueR.playBuffer(outBlock);
+      queueR.freeBuffer();
+      cleanQueueR.freeBuffer();
     }
-    limiter1.input(clean, 1);
-    queueR.freeBuffer();
   }
 }
 
@@ -221,14 +235,13 @@ void setupAudioPipeline() {
   filter1.frequency(500);
   filter1.resonance(0.7);
 
-  feedbackMixer.gain(0, 1.0f);
-  feedbackMixer.gain(1, feedbackAmount);
+  setFeedbackGain(0, 1.0f);
+  setFeedbackGain(1, feedbackAmount);
 
-  // Basic limiter settings to keep level in check. Adjust attack/release to
-  // taste; the defaults keep transients snappy while catching runaway feedback.
-  limiter1.attack(5);
-  limiter1.release(100);
-  limiter1.hold(50);
+  queueL.begin();
+  queueR.begin();
+  cleanQueueL.begin();
+  cleanQueueR.begin();
 }
 
 #ifdef __CPPCHECK__
