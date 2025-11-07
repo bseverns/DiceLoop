@@ -1,5 +1,7 @@
 # DiceLoop – Chaos Delay for the Restless
 
+![PlatformIO Build status](https://github.com/<your-github-handle>/DiceLoop/actions/workflows/build.yml/badge.svg)
+
 This project straps a chaotic delay line onto a **Teensy 4.0** board and dares you to
 feed it audio. Clean tones go in, fractured echoes come out. Every knob twist
 and button jab nudges the randomness, so you're never standing in the same river
@@ -180,6 +182,19 @@ pio run -t upload  # flash it to the board
 
 `platform.ini` already targets the Teensy 4.0, so the above is enough to get
 code onto the hardware.
+
+### Continuous Integration Safety Net
+
+The repo now sports a GitHub Actions workflow at `.github/workflows/build.yml`
+that mirrors the `pio run` build every time you push or open a PR. It installs
+PlatformIO on a fresh Ubuntu runner, primes the cache for the toolchain and
+third-party libraries, and refuses to let unbuildable firmware land in `main`.
+
+If you fork the project, swap `<your-github-handle>` in the status badge above
+for your account or org name so the badge tracks your fork. Want to run the CI
+against a feature branch before it exists? Smash the **Run workflow** button on
+GitHub thanks to the `workflow_dispatch` trigger and watch the build spin up on
+command.
 
 > **Note:** All of the real analog-to-digital work happens inside the SGTL5000
 > codec on the Teensy Audio Shield. `setupAudioPipeline()` now explicitly wakes
