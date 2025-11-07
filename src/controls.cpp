@@ -130,6 +130,8 @@ void updateControl() {
   bool modsEnabled = chaosModulatorsEnabled();
   Serial.println(modsEnabled ? "on" : "off");
 
+  // Pull the most recent chaos offsets so the UI mirrors what the audio engine
+  // is actually doing, not just what the knobs are set to.
   ChaosSnapshot snapshot = latestChaosSnapshot();
   renderStatusUI(buttonPressCount, modsEnabled, mixAmount, feedbackAmount,
                  static_cast<float>(noiseAmount), static_cast<float>(density),

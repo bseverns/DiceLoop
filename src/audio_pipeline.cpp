@@ -152,15 +152,24 @@ float processDirt(float sample) {
 }
 
 void processAudioQueues() {
+  // Each queue pair carries an interleaved block from the delay line and the
+  // pre-delay tap. If one side is empty we skip the entire pass; trying to mix
+  // mismatched buffers would smear channels and explode the noise floor.
   bool leftReady = queueL.available() && cleanQueueL.available();
   bool rightReady = queueR.available() && cleanQueueR.available();
   if (!leftReady && !rightReady) {
     return;
   }
 
+  // Normalise control values into 0..1 so downstream helpers can lean on the
+  // same maths regardless of pot scale or ladder step. The clamps keep us
+  // honest when pots jitter or the button ladder nudges past the endpoints.
   currentDensityNorm = constrain(density / 100.0f, 0.0f, 1.0f);
   currentNoiseNorm = constrain(noiseAmount / 60.0f, 0.0f, 1.0f);
 
+  // Sample chaos modulators once per audio block. Think of this as grabbing a
+  // snapshot from a modular synth: the values stay frozen for the entire block
+  // so we can apply them consistently while iterating sample-by-sample below.
   ChaosSnapshot chaosSnapshot =
       updateChaosModulators(currentDensityNorm, currentNoiseNorm,
                             AUDIO_BLOCK_SAMPLES);
@@ -168,10 +177,14 @@ void processAudioQueues() {
   blockFuzzScale = chaosSnapshot.fuzzGain;
 
   if (chaosModulatorsEnabled()) {
+    // When chaos is active we temporarily bend the feedback gain. The limiter
+    // below caps it at <1 to avoid runaway oscillation if the logistic map goes
+    // particularly feral.
     float modFeedback =
         constrain(feedbackAmount + chaosSnapshot.feedbackOffset, 0.0f, 0.99f);
     setFeedbackGain(1, modFeedback);
   } else {
+    // Otherwise we honour the front-panel knob verbatim. No secret sauce.
     setFeedbackGain(1, feedbackAmount);
   }
 

@@ -52,6 +52,9 @@ bool toggleChaosModulators() {
 
 ChaosSnapshot updateChaosModulators(float densityNorm, float noiseNorm,
                                     int samplesPerBlock) {
+  // Default offsets keep the engine honest even when modulators are bypassed;
+  // mix/feedback stay at whatever the performer dialled in while fuzz gain sits
+  // at unity. The early return caches that baseline so the UI can render it too.
   ChaosSnapshot snapshot{0.0f, 0.0f, 1.0f};
   if (!modulatorsEnabled || samplesPerBlock <= 0) {
     lastSnapshot = snapshot;
