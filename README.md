@@ -105,7 +105,7 @@ the chosen ranges work on Teensy 4.0 (3.3 V reference, 10-bit ADC, etc.).
 
 | Physical control | Teensy pin | Firmware symbol | Range & behaviour |
 | ---------------- | ---------- | --------------- | ----------------- |
-| Delay pot        | `A0`       | `delay1.delay`  | 1 ms – 300 ms of buffer on tap 0 |
+| Delay pot        | `A0`       | `delay1.delay`  | Four-scene macro: dead-dry stop, 0–300 ms slapback, ghost-voice crossfeed, bloom limiter |
 | Feedback pot     | `A1`       | `feedbackAmount`| 0.00 – 1.00 linear gain into feedback mixer |
 | Noise pot        | `A3`       | `noiseAmount`   | 0 – 60 → maps to 2–8 bit resolution in crusher |
 | Density pot      | `A4`       | `density`       | 0 – 100% chance that a sample is crushed |
@@ -116,6 +116,20 @@ the chosen ranges work on Teensy 4.0 (3.3 V reference, 10-bit ADC, etc.).
 The chaos ladder is intentionally dramatic: each reseed press ratchets both the
 bit crushing depth and the glitch density, while also reseeding the RNG from an
 analog pin so the statistical flavour changes in a way you can actually hear.
+
+**Delay pot macro map**
+
+- **0 – 5 %** → bypass. The firmware forces the mix dry and parks both delay taps
+  at zero so you can cue phrases without the buffer lurking.
+- **5 – 33 %** → slapback accelerator. A quadratic curve rockets from
+  ~10 ms to ~300 ms, making the first third of the travel feel like a tight
+  tape echo.
+- **33 – 66 %** → ghost voice. The second tap wakes up, offset a few hundred
+  milliseconds behind the main buffer, and crossfeeds between channels so the
+  tail ping-pongs instead of just stacking louder.
+- **66 – 100 %** → bloom. The mix leans wetter, a limiter-style swell clamps the
+  return, and the feedback loop gets a gentle shove so the repeats flare without
+  self-oscillating (unless you *want* that and crank the feedback pot anyway).
 
 `src/audio_pipeline.cpp` handles the mixing and dirt engines while
 `src/controls.cpp` maps the knobs and buttons to those globals. It's all plain

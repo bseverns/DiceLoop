@@ -105,9 +105,66 @@ void updateControl() {
   // The Teensy 4.0 ADC reports 0–1023 for 0–3.3 V. Each map()/division converts
   // that range into something meaningful for the DSP stage.
 
-  // Delay time: map to 1–300 ms on tap 0.
+  // Delay macro: slice the knob into four scenes so performers can stage the
+  // texture without menu diving. We normalise the raw ADC reading into 0..1 and
+  // then fan it out across the regions described in the README and design notes.
   int potDelayValue = analogRead(potDelayPin);
-  delay1.delay(0, map(potDelayValue, 0, 1023, 1, 300));
+  float delayNorm = static_cast<float>(potDelayValue) / 1023.0f;
+
+  constexpr float noDelayFloor = 0.05f;      // Dead zone for instant dry
+  constexpr float secondVoiceThreshold = 1.0f / 3.0f;
+  constexpr float bloomThreshold = 2.0f / 3.0f;
+  constexpr float maxDelayMs = 1200.0f;      // Keep taps inside delay1's buffer
+
+  float primaryDelayMs = 1.0f;
+  float secondaryDelayMs = 1.0f;
+  float ghostBlend = 0.0f;
+  float wetOverride = -1.0f;
+  float wetBias = 0.0f;
+  float bloomDepth = 0.0f;
+  float bloomPush = 0.0f;
+
+  if (delayNorm <= noDelayFloor) {
+    primaryDelayMs = 0.0f;
+    secondaryDelayMs = 0.0f;
+    wetOverride = 0.0f;  // Force bone-dry when the pot hugs the stop
+  } else if (delayNorm <= secondVoiceThreshold) {
+    float regionNorm =
+        (delayNorm - noDelayFloor) / (secondVoiceThreshold - noDelayFloor);
+    regionNorm = constrain(regionNorm, 0.0f, 1.0f);
+    float eased = regionNorm * regionNorm;  // Quick acceleration into slapback
+    primaryDelayMs = 10.0f + eased * 290.0f;  // ≈10–300 ms
+    secondaryDelayMs = primaryDelayMs + 90.0f;
+  } else if (delayNorm <= bloomThreshold) {
+    float regionNorm =
+        (delayNorm - secondVoiceThreshold) / (bloomThreshold - secondVoiceThreshold);
+    regionNorm = constrain(regionNorm, 0.0f, 1.0f);
+    primaryDelayMs = 300.0f + regionNorm * 180.0f;          // 300–480 ms
+    secondaryDelayMs = primaryDelayMs + 120.0f + regionNorm * 160.0f;
+    ghostBlend = regionNorm;                                // Fade the ghost in
+    wetBias = 0.05f * regionNorm;                           // Encourage wetter tails
+  } else {
+    float regionNorm =
+        (delayNorm - bloomThreshold) / (1.0f - bloomThreshold);
+    regionNorm = constrain(regionNorm, 0.0f, 1.0f);
+    primaryDelayMs = 480.0f + regionNorm * 220.0f;          // 480–700 ms
+    secondaryDelayMs = primaryDelayMs + 320.0f + regionNorm * 160.0f;
+    ghostBlend = 1.0f;
+    wetBias = 0.05f + 0.2f * regionNorm;
+    bloomDepth = regionNorm;
+    bloomPush = 0.25f * regionNorm;
+  }
+
+  primaryDelayMs = constrain(primaryDelayMs, 0.0f, maxDelayMs);
+  secondaryDelayMs = constrain(secondaryDelayMs, 0.0f, maxDelayMs);
+
+  delay1.delay(0, primaryDelayMs);
+  delay1.delay(1, secondaryDelayMs);
+  macroMixOverride = wetOverride;
+  macroWetBias = wetBias;
+  secondaryVoiceLevel = ghostBlend;
+  bloomAmount = bloomDepth;
+  bloomFeedbackBoost = bloomPush;
 
   // Feedback: convert to a 0.00–1.00 linear gain, then feed into the mixer.
   int potFeedbackValue = analogRead(potFeedbackPin);
