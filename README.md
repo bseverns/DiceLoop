@@ -1,6 +1,6 @@
 # DiceLoop – Chaos Delay for the Restless
 
-![PlatformIO Build status](https://github.com/<your-github-handle>/DiceLoop/actions/workflows/build.yml/badge.svg)
+![PlatformIO Build status](https://github.com/bseverns/DiceLoop/actions/workflows/build.yml/badge.svg)
 
 This project straps a chaotic delay line onto a **Teensy 4.0** board and dares you to
 feed it audio. Clean tones go in, fractured echoes come out. Every knob twist
