@@ -200,13 +200,14 @@ command.
 > codec on the Teensy Audio Shield. `setupAudioPipeline()` now explicitly wakes
 > the chip, routes the **line in** pair to the delay graph, and leaves the MCU's
 > bare-metal ADC powered down. That silicon (and the PJRC `input_adc.cpp`
-> module) target the older Kinetis parts, so we ship an `extra_script`
+> module) targets the older Kinetis parts, so we ship an `extra_script`
 > (`scripts/disable_audio_adc.py`) that snips it out before PlatformIO wastes
-> cycles compiling code we never call. The repo also carries lightweight
-> compatibility headers (`include/audio_register_compat.h`, `include/kinetis.h`)
-> so legacy Audio library releases keep building even if PJRC changes register
-> names upstream. If you crave the breadboard-friendly on-chip ADC, reach for a
-> Teensy 3.x or port the driver to i.MXRT and ditch the script *plus* the shims.
+> cycles compiling code we never call. The Teensyduino toolchain bundles a
+> modern Audio library that already speaks IMXRT, so pinning
+> `paulstoffregen/Audio@^1.3.1` in `platformio.ini` keeps CI and local builds in
+> lockstep with PJRC's latest fixes. If you crave the breadboard-friendly
+> on-chip ADC, reach for a Teensy 3.x or port the driver to i.MXRT and ditch the
+> script.
 
 > **Heads up:** The first `pio run` after cloning will pull in the entire
 > [PJRC Audio library](https://www.pjrc.com/teensy/td_libs_Audio.html). Expect a
