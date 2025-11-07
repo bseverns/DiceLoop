@@ -31,6 +31,7 @@ extern AudioRecordQueue queueL, queueR;    // Post-delay dirty taps
 extern AudioRecordQueue cleanQueueL, cleanQueueR; // Pre-delay clean taps
 extern AudioOutputI2S i2sOut;              // Audio shield line out
 extern audio_compat::Mixer4 feedbackMixer; // Combines dry signal + feedback loop
+extern AudioControlSGTL5000 audioShield;   // Codec controller (ADC/DAC front-end)
 
 extern float mixAmount;                    // Dry/wet crossfade coefficient
 extern float feedbackAmount;               // Feedback loop gain coefficient

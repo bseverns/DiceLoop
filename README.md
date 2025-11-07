@@ -53,6 +53,18 @@ pushes the mixed result into a pair of `AudioPlayQueue` nodes that ferry the
 audio straight to the DAC. The ASCII diagram is rough, but the code comments
 mirror it line-by-line so you can always map theory to firmware.
 
+### Analog Front-End (Where the ADC actually lives)
+
+There *is* an ADC in the loop—it just sits on the Teensy Audio Shield instead of
+on the microcontroller. `AudioControlSGTL5000 audioShield` is now part of the
+global rig inside `src/audio_pipeline.cpp`, and `setupAudioPipeline()` wakes the
+codec, flips the input to **line in**, dials a sane gain, and leaves you with a
+low-noise stereo feed ready for the chaos engine. The Teensy 4.0’s built-in ADC
+is still tethered to a half-baked PJRC driver aimed at Kinetis-era silicon, so
+we disable that module during the build (see the note in the flashing section).
+If you really want to jam a guitar straight into the microcontroller, grab a
+Teensy 3.x or port the ADC driver forward.
+
 ## Control Map & Chaos Knob Lore
 
 These parameters are polled each loop and shoved straight into the audio path.
@@ -168,6 +180,16 @@ pio run -t upload  # flash it to the board
 
 `platform.ini` already targets the Teensy 4.0, so the above is enough to get
 code onto the hardware.
+
+> **Note:** All of the real analog-to-digital work happens inside the SGTL5000
+> codec on the Teensy Audio Shield. `setupAudioPipeline()` now explicitly wakes
+> the chip, routes the **line in** pair to the delay graph, and leaves the MCU's
+> bare-metal ADC powered down. That silicon (and the PJRC `input_adc.cpp`
+> module) target the older Kinetis parts, so we ship an `extra_script`
+> (`scripts/disable_audio_adc.py`) that snips it out before PlatformIO tries to
+> build it and faceplants on the missing `kinetis.h`. If you crave the
+> breadboard-friendly on-chip ADC, reach for a Teensy 3.x or port the driver to
+> i.MXRT and ditch the script.
 
 > **Heads up:** The first `pio run` after cloning will pull in the entire
 > [PJRC Audio library](https://www.pjrc.com/teensy/td_libs_Audio.html). Expect a
