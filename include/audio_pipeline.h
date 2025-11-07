@@ -30,7 +30,7 @@ extern AudioFilterStateVariable filter1;   // High-pass conditioning filter
 extern AudioRecordQueue queueL, queueR;    // Post-delay dirty taps
 extern AudioRecordQueue cleanQueueL, cleanQueueR; // Pre-delay clean taps
 extern AudioOutputI2S i2sOut;              // Audio shield line out
-extern AudioMixer4 feedbackMixer;          // Combines dry signal + feedback loop
+extern audio_compat::Mixer4 feedbackMixer; // Combines dry signal + feedback loop
 
 extern float mixAmount;                    // Dry/wet crossfade coefficient
 extern float feedbackAmount;               // Feedback loop gain coefficient

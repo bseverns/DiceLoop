@@ -36,7 +36,7 @@ AudioRecordQueue       queueL, queueR;
 AudioRecordQueue       cleanQueueL, cleanQueueR;
 AudioPlayQueue         outputQueueL, outputQueueR;
 AudioOutputI2S         i2sOut;
-AudioMixer4           feedbackMixer;
+audio_compat::Mixer4 feedbackMixer;
 
 // `feedbackAmount` mirrors the front-panel feedback pot and is shared with the
 // controls module. It is applied as gain on `feedbackMixer` input 1.
@@ -176,23 +176,23 @@ void processAudioQueues() {
     // Mix left channel from clean and dirty delay buffers. Audio blocks are
     // 128-sample chunks. Teensy represents them as int16_t where ±32767 equals
     // ±1.0f. We convert to floats for clarity then convert back.
-    audio_block_t *dirty = queueL.readBuffer();
-    audio_block_t *clean = cleanQueueL.readBuffer();
-    audio_block_t *outBlock = outputQueueL.getBuffer();
+    int16_t *dirty = queueL.readBuffer();
+    int16_t *clean = cleanQueueL.readBuffer();
+    int16_t *outBlock = outputQueueL.getBuffer();
     if (!outBlock) {
       queueL.freeBuffer();
       cleanQueueL.freeBuffer();
     } else {
       for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
-        float c = static_cast<float>(clean->data[i]) / 32768.0f;
-        float d = static_cast<float>(dirty->data[i]) / 32768.0f;
+        float c = static_cast<float>(clean[i]) / 32768.0f;
+        float d = static_cast<float>(dirty[i]) / 32768.0f;
         // Apply dirt and blend with clean signal.
         d = processDirt(d);
         float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
         mixed = constrain(mixed, -1.0f, 1.0f);
-        outBlock->data[i] = static_cast<int16_t>(mixed * 32767.0f);
+        outBlock[i] = static_cast<int16_t>(mixed * 32767.0f);
       }
-      outputQueueL.playBuffer(outBlock);
+      outputQueueL.playBuffer();
       queueL.freeBuffer();
       cleanQueueL.freeBuffer();
     }
@@ -200,23 +200,23 @@ void processAudioQueues() {
 
   if (rightReady) {
     // Repeat the same dance for the right channel.
-    audio_block_t *dirty = queueR.readBuffer();
-    audio_block_t *clean = cleanQueueR.readBuffer();
-    audio_block_t *outBlock = outputQueueR.getBuffer();
+    int16_t *dirty = queueR.readBuffer();
+    int16_t *clean = cleanQueueR.readBuffer();
+    int16_t *outBlock = outputQueueR.getBuffer();
     if (!outBlock) {
       queueR.freeBuffer();
       cleanQueueR.freeBuffer();
     } else {
       for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
-        float c = static_cast<float>(clean->data[i]) / 32768.0f;
-        float d = static_cast<float>(dirty->data[i]) / 32768.0f;
+        float c = static_cast<float>(clean[i]) / 32768.0f;
+        float d = static_cast<float>(dirty[i]) / 32768.0f;
         // Apply dirt and blend with clean signal.
         d = processDirt(d);
         float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
         mixed = constrain(mixed, -1.0f, 1.0f);
-        outBlock->data[i] = static_cast<int16_t>(mixed * 32767.0f);
+        outBlock[i] = static_cast<int16_t>(mixed * 32767.0f);
       }
-      outputQueueR.playBuffer(outBlock);
+      outputQueueR.playBuffer();
       queueR.freeBuffer();
       cleanQueueR.freeBuffer();
     }
