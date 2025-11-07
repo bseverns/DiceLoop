@@ -8,10 +8,6 @@ like it fell down the stairs. Think of the repo as a lab notebook where every
 subsystem is annotated, diagrammed, and cross-linked so you can both perform and
 reverse-engineer the trickery.
 
-> **Teaching vibe:** The comments and READMEs aim to be rigorous enough for a
-> grad seminar yet still punk enough to keep you awake. Follow the links, read
-> the notes, and then mod the hell out of it.
-
 ## Gear Checklist
 - **Teensy 4.0** with the PJRC Audio Shield with input and outputs wired
 - **Five 10k pots** wired like so:
