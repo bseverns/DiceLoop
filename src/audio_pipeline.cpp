@@ -4,21 +4,52 @@
 // The graph below mirrors the signal flow ASCII art in README.md. Each global
 // object represents a node; the `AudioConnection` instances form the edges.
 //
-// ┌───────────────┐    ┌──────────────┐    ┌─────────────┐
-// │ AudioInputI2S │───►│ filter1 (SVF)│───►│ feedbackMixer│──┐
-// └───────────────┘    └──────┬───────┘    └────┬────────┘  │
-//                              │                 │           │
-//                              ▼                 │           │
-//                     cleanQueueL/R (tap)        │           │
-//                              │                 │           │
-//                              ▼                 │           │
-//                       delay1 (stereo taps)     │◄──────────┘
+// ┌────────────────┐   Audio Shield I²S   ┌───────────────────────┐
+// │ AudioInputI2S  │ ───────────────────► │ filter1 (gentle HPF)  │
+// └────────────────┘                      └──────────┬────────────┘
+//                                                   │
+//                                                   │   clean tap for manual mix
+//                                                   ▼
+//                                      ┌─────────────────────────────┐
+//                                      │ cleanQueueL / cleanQueueR   │
+//                                      └────────────┬────────────────┘
+//                                                   │
+//                                                   ▼
+//                                       ┌────────────────────────┐
+//                                       │ feedbackMixer (4x1)   │◄────────────┐
+//                                       └───────────┬──────────┘             │
+//                                                   │                        │
+//                                                   ▼                        │
+//                                        ┌──────────────────────┐            │
+//                                        │ delay1 (stereo taps) │────────────┘
+//                                        └────────────┬─────────┘
+//                                                     │
+//                                                     │  post-delay capture for chaos
+//                                                     ▼
+//                               ┌────────────────────────────────┐
+//                               │ queueL / queueR  (dirty tap)   │
+//                               └────────────┬───────────────────┘
+//                                            │
+//                            chaos modulators│ feed offsets to ↓
+//                  reseed/reset ladder & pots │
+//                                            ▼
+//                  ┌────────────────────────────────────────────────────┐
+//                  │ processAudioQueues()                               │
+//                  │   ├─ blend clean tap + dirty tap                   │
+//                  │   ├─ Chaos Engine: processDirt()                   │
+//                  │   │     • bit crush core                           │
+//                  │   │     • wavefold smear                           │
+//                  │   │     • stutter / hold shards                    │
+//                  │   └─ trem/fuzz polish + mix routing                │
+//                  └──────────┬─────────────────────────────────────────┘
 //                              │
 //                              ▼
-//                        queueL/queueR
-//                              │
-//                              ▼
-//                   outputQueueL/R → i2sOut
+//                    ┌────────────────────────────┐
+//                    │ outputQueueL / outputQueueR│
+//                    └────────────┬────────────────┘
+//                                  │
+//                                  ▼
+//                               i2sOut
 //
 // The helper functions in this file set up the graph and then manually mix the
 // queue buffers so we can sprinkle in probabilistic bit crushing.

@@ -33,27 +33,61 @@ hardware without spelunking the whole codebase.
 ## Signal Flow Snapshot
 
 ```
-┌────────────┐   Audio Shield I2S   ┌─────────────────────┐   ┌─────────────┐
-│ Line / Mic │ ───────────────────► │  filter1 (HPF-ish)  │ ─►│ cleanQueue* │
-└────────────┘                      └─────────┬───────────┘   └─────────────┘
+┌──────────────┐   Audio Shield I²S   ┌───────────────────────┐
+│  Line / Mic  │ ───────────────────► │  filter1 (gentle HPF) │
+└──────────────┘                      └──────────┬────────────┘
+                                               │
+                                               │      clean tap for manual mix
+                                               ▼
+                                   ┌───────────────────────────┐
+                                   │ cleanQueueL / cleanQueueR │
+                                   └──────────┬────────────────┘
+                                              │
                                               │
                                               ▼
-                                    ┌────────────────────┐
-                                    │ delay1 (two taps)  │
-                                    └───────┬───────┬────┘
-                                            │       │
-                                            ▼       ▼
-                                     queueL/queueR  ──► outputQueue* ──► I2S out
-                                            │
-                                            ▼
-                                      feedbackMixer ◄─────◄─ filter1
+                                 ┌─────────────────────────┐
+                                 │  feedbackMixer (4x1)   │◄──────────────┐
+                                 └──────────┬──────────────┘               │
+                                            │                              │
+                                            ▼                              │
+                                  ┌──────────────────────┐                 │
+                                  │ delay1 (stereo taps) │────────────────┘
+                                  └──────────┬───────────┘
+                                             │
+                                             │   post-delay capture for chaos
+                                             ▼
+                               ┌────────────────────────────────┐
+                               │ queueL / queueR  (dirty tap)   │
+                               └──────────┬─────────────────────┘
+                                           │
+                           chaos modulators│ feed offsets to ↓
+                 reseed/reset ladder & pots │
+                                           ▼
+                 ┌────────────────────────────────────────────────────┐
+                 │ processAudioQueues()                               │
+                 │   ├─ blend clean tap + dirty tap                   │
+                 │   ├─ Chaos Engine: processDirt()                   │
+                 │   │     • bit crush core                           │
+                 │   │     • wavefold smear                           │
+                 │   │     • stutter / hold shards                    │
+                 │   └─ trem/fuzz polish + mix routing                │
+                 └──────────┬─────────────────────────────────────────┘
+                             │
+                             ▼
+                   ┌────────────────────────────┐
+                   │ outputQueueL / outputQueueR│
+                   └──────────┬─────────────────┘
+                              │
+                              ▼
+                            I²S out
 ```
 
-The `processAudioQueues()` function drains the `queue*` buffers, applies the
-dynamic dirt engines living in `processDirt()`, blends the dry/wet signals, and
-pushes the mixed result into a pair of `AudioPlayQueue` nodes that ferry the
-audio straight to the DAC. The ASCII diagram is rough, but the code comments
-mirror it line-by-line so you can always map theory to firmware.
+The `processAudioQueues()` function drains the `queue*` buffers, lets the chaos
+engine (`processDirt()`) chew on the dirty tap, blends that against the clean
+feed with any offsets coming from the hidden modulators, and finally pushes the
+mixed result into a pair of `AudioPlayQueue` nodes that ferry the audio straight
+to the DAC. The ASCII diagram is rough, but the code comments mirror it
+line-by-line so you can always map theory to firmware.
 
 ### Analog Front-End (Where the ADC actually lives)
 
