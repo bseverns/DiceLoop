@@ -108,26 +108,32 @@ struct Mixer4Selector<Mixer, false> {
 
 using Mixer4Type = typename Mixer4Selector<AudioMixer4>::type;
 
+template <int Priority>
+struct PriorityTag : PriorityTag<Priority - 1> {};
+
+template <>
+struct PriorityTag<-1> {};
+
 template <typename Mixer>
-auto dispatchGain(Mixer &mixer, unsigned int channel, float gain, int)
-    -> decltype(mixer.gain(channel, gain, 0), void()) {
+auto dispatchGain(Mixer &mixer, unsigned int channel, float gain,
+                  PriorityTag<2>) -> decltype(mixer.gain(channel, gain, 0), void()) {
   mixer.gain(channel, gain, 0);
 }
 
 template <typename Mixer>
-auto dispatchGain(Mixer &mixer, unsigned int channel, float gain, long)
-    -> decltype(mixer.gain(channel, gain), void()) {
+auto dispatchGain(Mixer &mixer, unsigned int channel, float gain,
+                  PriorityTag<1>) -> decltype(mixer.gain(channel, gain), void()) {
   mixer.gain(channel, gain);
 }
 
 template <typename Mixer>
-auto dispatchGain(Mixer &mixer, unsigned int channel, float gain, long long)
-    -> decltype(mixer.setGain(channel, gain), void()) {
+auto dispatchGain(Mixer &mixer, unsigned int channel, float gain,
+                  PriorityTag<0>) -> decltype(mixer.setGain(channel, gain), void()) {
   mixer.setGain(channel, gain);
 }
 
 template <typename Mixer>
-void dispatchGain(Mixer &, unsigned int, float, ...) {
+void dispatchGain(Mixer &, unsigned int, float, PriorityTag<-1>) {
   static_assert(sizeof(Mixer) == 0,
                 "audio_compat::setGain: mixer missing gain setter");
 }
@@ -138,7 +144,7 @@ using Mixer4 = detail::Mixer4Type;
 
 template <typename Mixer>
 void setGain(Mixer &mixer, unsigned int channel, float gain) {
-  detail::dispatchGain(mixer, channel, gain, 0);
+  detail::dispatchGain(mixer, channel, gain, detail::PriorityTag<2>{});
 }
 
 }  // namespace audio_compat
