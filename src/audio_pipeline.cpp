@@ -24,6 +24,7 @@
 // queue buffers so we can sprinkle in probabilistic bit crushing.
 #include "audio_pipeline.h"
 #include "Arduino.h"
+#include "chaos.h"
 #include "controls.h"
 #include <cmath>
 
@@ -64,6 +65,14 @@ float tremPhase = 0.0f;
 float foldMemory = 0.0f;
 float heldSample = 0.0f;
 int holdCountdown = 0;
+
+// Block-scope modulation shared across the current audio buffers. `processDirt`
+// reads these so the optional chaos modulators can warp parameters without
+// adding more arguments or globals elsewhere.
+float blockMixAmount = 0.5f;
+float blockFuzzScale = 1.0f;
+float currentDensityNorm = 0.0f;
+float currentNoiseNorm = 0.0f;
 
 constexpr float twoPi = 2.0f * PI;
 
@@ -117,8 +126,8 @@ float processDirt(float sample) {
     return sample;
   }
 
-  float densityNorm = constrain(density / 100.0f, 0.0f, 1.0f);
-  float noiseNorm = constrain(noiseAmount / 60.0f, 0.0f, 1.0f);
+  float densityNorm = currentDensityNorm;
+  float noiseNorm = currentNoiseNorm;
 
   float crushed = applyBitCrush(sample, noiseNorm);
   float folded = applyWaveFold(sample, noiseNorm);
@@ -132,6 +141,7 @@ float processDirt(float sample) {
   // hairy the fuzz gets, density dictates how often new grains are minted.
   float fuzz = static_cast<float>(random(-32768, 32767)) / 32767.0f;
   float fuzzAmount = (0.08f + 0.42f * noiseNorm) * (0.4f + 0.6f * densityNorm);
+  fuzzAmount *= blockFuzzScale;
   float result = rhythmBlend + fuzz * fuzzAmount;
 
   result *= nextTremoloGain(densityNorm);
@@ -139,7 +149,30 @@ float processDirt(float sample) {
 }
 
 void processAudioQueues() {
-  if (queueL.available() && cleanQueueL.available()) {
+  bool leftReady = queueL.available() && cleanQueueL.available();
+  bool rightReady = queueR.available() && cleanQueueR.available();
+  if (!leftReady && !rightReady) {
+    return;
+  }
+
+  currentDensityNorm = constrain(density / 100.0f, 0.0f, 1.0f);
+  currentNoiseNorm = constrain(noiseAmount / 60.0f, 0.0f, 1.0f);
+
+  ChaosSnapshot chaosSnapshot =
+      updateChaosModulators(currentDensityNorm, currentNoiseNorm,
+                            AUDIO_BLOCK_SAMPLES);
+  blockMixAmount = constrain(mixAmount + chaosSnapshot.mixOffset, 0.0f, 1.0f);
+  blockFuzzScale = chaosSnapshot.fuzzGain;
+
+  if (chaosModulatorsEnabled()) {
+    float modFeedback =
+        constrain(feedbackAmount + chaosSnapshot.feedbackOffset, 0.0f, 0.99f);
+    feedbackMixer.gain(1, modFeedback);
+  } else {
+    feedbackMixer.gain(1, feedbackAmount);
+  }
+
+  if (leftReady) {
     // Mix left channel from clean and dirty delay buffers. Audio blocks are
     // 128-sample chunks. Teensy represents them as int16_t where ±32767 equals
     // ±1.0f. We convert to floats for clarity then convert back.
@@ -150,7 +183,7 @@ void processAudioQueues() {
       float d = (float)dirty->data[i] / 32768.0f;
       // Apply dirt and blend with clean signal.
       d = processDirt(d);
-      float mixed = (1.0f - mixAmount) * c + mixAmount * d;
+      float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
       mixed = constrain(mixed, -1.0f, 1.0f);
       clean->data[i] = (int16_t)(mixed * 32767.0f);
     }
@@ -158,7 +191,7 @@ void processAudioQueues() {
     queueL.freeBuffer();
   }
 
-  if (queueR.available() && cleanQueueR.available()) {
+  if (rightReady) {
     // Repeat the same dance for the right channel.
     audio_block_t *dirty = queueR.readBuffer();
     audio_block_t *clean = cleanQueueR.readBuffer();
@@ -167,7 +200,7 @@ void processAudioQueues() {
       float d = (float)dirty->data[i] / 32768.0f;
       // Apply dirt and blend with clean signal.
       d = processDirt(d);
-      float mixed = (1.0f - mixAmount) * c + mixAmount * d;
+      float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
       mixed = constrain(mixed, -1.0f, 1.0f);
       clean->data[i] = (int16_t)(mixed * 32767.0f);
     }
