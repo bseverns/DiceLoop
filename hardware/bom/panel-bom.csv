@@ -1,0 +1,11 @@
+Designator,Qty,Description,Manufacturer,MPN,Notes
+P1-P5,5,Potentiometer 10k Linear 16mm,Bourns,PTD902-2015K-B103,Panel mount w/ nut and washer
+SW1-SW2,2,SPST Momentary Pushbutton,C&K,PB61503,Chaos triggers - active low
+U1,1,Shift Register 74HC595,Nexperia,74HC595D,Drives LED bar
+LED1,1,LED Bar Graph 10 Segment,Kingbright,DC-10GWA,Loop meter
+U2,1,Teensy 4.0,PJRC,TEENSY40,Core MCU
+U3,1,Audio Shield Rev D,PJRC,AUDIO_SHIELD_REV_D,I2S codec + SD
+J1-J2,2,Audio Jack 3.5mm Stereo,Neutrik,NMJ6HCD2,Rout signals
+J3,1,DC Barrel Jack 2.1mm,Switchcraft,EJ-0314,Power input
+DS1,1,OLED 128x64 SSD1306,BuyDisplay,ER-OLED0.96-1W,Optional display
+Misc,1,Headers/Resistors/Hardware,Various,,See dice-loop-bom.md for narrative
