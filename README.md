@@ -50,10 +50,10 @@ hardware without spelunking the whole codebase.
 ```
 
 The `processAudioQueues()` function drains the `queue*` buffers, applies the
-bit-crushing chaos via `processDirt()`, blends the dry/wet signals, and pipes
-everything into `limiter1` before the final DAC hop. The ASCII diagram is rough,
-but the code comments mirror it line-by-line so you can always map theory to
-firmware.
+dynamic dirt engines living in `processDirt()`, blends the dry/wet signals, and
+pipes everything into `limiter1` before the final DAC hop. The ASCII diagram is
+rough, but the code comments mirror it line-by-line so you can always map theory
+to firmware.
 
 ## Control Map & Chaos Knob Lore
 
@@ -75,9 +75,30 @@ The chaos ladder is intentionally dramatic: each reseed press ratchets both the
 bit crushing depth and the glitch density, while also reseeding the RNG from an
 analog pin so the statistical flavour changes in a way you can actually hear.
 
-`src/audio_pipeline.cpp` handles the mixing and bit‑crushing while
+`src/audio_pipeline.cpp` handles the mixing and dirt engines while
 `src/controls.cpp` maps the knobs and buttons to those globals. It's all plain
 C++ and Arduino APIs—poke around and hack it.
+
+### Dirt Engine Anatomy
+
+`processDirt()` now juggles three little DSP gremlins instead of a single
+bit-crusher:
+
+- **Bit crush core** – The OG reduction to 2–8 bits still anchors the sound and
+  tracks the `noiseAmount` pot.
+- **Wavefold smear** – A sine-based fold keeps harmonic chaos musical. The fold
+  accumulates into a short memory buffer so micro-movements of the knobs or
+  chaos ladder read as motion instead of clicks.
+- **Sample-and-hold stutter** – Density steers how quickly the engine freezes
+  and relaunches audio grains. Slow sweeps feel like a dying tape deck; full
+  tilt becomes digital chopper heaven.
+
+Those outputs are blended on-the-fly and then handed to a slow tremolo and a
+touch of controlled fuzz. The knobs stay expressive because each axis hits a
+different part of the engine: `noiseAmount` sculpts harmonic teeth, `density`
+nudges the rhythmic edits, and the chaos ladder reseeds the whole mess so it
+never loops in place. Crack open `src/audio_pipeline.cpp` to study the math—it's
+annotated so you can rip out pieces or wire in your own machines.
 
 ### Teaching Notes
 
