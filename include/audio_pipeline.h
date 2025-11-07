@@ -35,6 +35,11 @@ extern AudioControlSGTL5000 audioShield;   // Codec controller (ADC/DAC front-en
 
 extern float mixAmount;                    // Dry/wet crossfade coefficient
 extern float feedbackAmount;               // Feedback loop gain coefficient
+extern float macroMixOverride;             // Optional dry/wet override from delay macro
+extern float macroWetBias;                 // Extra wetness shove for macro stages
+extern float secondaryVoiceLevel;          // Crossfeed blend for the ghost voice
+extern float bloomAmount;                  // Limiter/feedback bloom depth (0..1)
+extern float bloomFeedbackBoost;           // Additional feedback injected by bloom
 
 inline void setFeedbackGain(unsigned int channel, float value) {
   audio_compat::setGain(feedbackMixer, channel, value);

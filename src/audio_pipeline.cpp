@@ -89,6 +89,11 @@ AudioConnection patchCord10(outputQueueR, 0, i2sOut, 1);
 // Ratio of dirty (post-delay) to clean (pre-delay) signal. 0 = dry, 1 = fully
 // crushed chaos.
 float mixAmount = 0.5f;
+float macroMixOverride = -1.0f;
+float macroWetBias = 0.0f;
+float secondaryVoiceLevel = 0.0f;
+float bloomAmount = 0.0f;
+float bloomFeedbackBoost = 0.0f;
 
 namespace {
 // State for the dynamic "dirt engine" cluster. All knobs steer these modulators
@@ -105,6 +110,8 @@ float blockMixAmount = 0.5f;
 float blockFuzzScale = 1.0f;
 float currentDensityNorm = 0.0f;
 float currentNoiseNorm = 0.0f;
+float bloomEnvelopeL = 0.0f;
+float bloomEnvelopeR = 0.0f;
 
 constexpr float twoPi = 2.0f * PI;
 
@@ -148,6 +155,26 @@ float nextTremoloGain(float densityNorm) {
     tremPhase -= twoPi;
   }
   return 0.75f + 0.25f * sinf(tremPhase);
+}
+
+float applyBloomLimiter(float sample, float amount, float &envelope) {
+  if (amount <= 0.0f) {
+    return sample;
+  }
+
+  float absSample = fabsf(sample);
+  float attack = 0.45f + amount * 0.35f;
+  float release = 0.92f - amount * 0.25f;
+  if (absSample > envelope) {
+    envelope = attack * absSample + (1.0f - attack) * envelope;
+  } else {
+    envelope = release * envelope + (1.0f - release) * absSample;
+  }
+
+  float swell = 1.0f + amount * (1.0f - envelope);
+  float drive = 1.0f + amount * 8.0f;
+  float saturated = tanhf(sample * drive);
+  return constrain(saturated * swell, -1.0f, 1.0f);
 }
 } // namespace
 
@@ -204,25 +231,85 @@ void processAudioQueues() {
   ChaosSnapshot chaosSnapshot =
       updateChaosModulators(currentDensityNorm, currentNoiseNorm,
                             AUDIO_BLOCK_SAMPLES);
-  blockMixAmount = constrain(mixAmount + chaosSnapshot.mixOffset, 0.0f, 1.0f);
+  float baseMix = mixAmount;
+  if (macroMixOverride >= 0.0f) {
+    baseMix = macroMixOverride;
+  }
+  baseMix = constrain(baseMix + macroWetBias, 0.0f, 1.0f);
+  blockMixAmount = constrain(baseMix + chaosSnapshot.mixOffset, 0.0f, 1.0f);
   blockFuzzScale = chaosSnapshot.fuzzGain;
 
+  float baseFeedback = constrain(feedbackAmount + bloomFeedbackBoost, 0.0f, 0.99f);
   if (chaosModulatorsEnabled()) {
     // When chaos is active we temporarily bend the feedback gain. The limiter
     // below caps it at <1 to avoid runaway oscillation if the logistic map goes
     // particularly feral.
     float modFeedback =
-        constrain(feedbackAmount + chaosSnapshot.feedbackOffset, 0.0f, 0.99f);
+        constrain(baseFeedback + chaosSnapshot.feedbackOffset, 0.0f, 0.99f);
     setFeedbackGain(1, modFeedback);
   } else {
-    // Otherwise we honour the front-panel knob verbatim. No secret sauce.
-    setFeedbackGain(1, feedbackAmount);
+    // Otherwise we honour the front-panel knob verbatim plus the macro shove.
+    setFeedbackGain(1, baseFeedback);
+  }
+
+  if (leftReady && rightReady) {
+    // Both taps are active: treat them as a stereo micro-mixer so we can cross
+    // pollinate the ghost voice and run the bloom limiter across both tails.
+    int16_t *dirtyL = queueL.readBuffer();
+    int16_t *cleanL = cleanQueueL.readBuffer();
+    int16_t *dirtyR = queueR.readBuffer();
+    int16_t *cleanR = cleanQueueR.readBuffer();
+    int16_t *outL = outputQueueL.getBuffer();
+    int16_t *outR = outputQueueR.getBuffer();
+    if (!outL || !outR) {
+      queueL.freeBuffer();
+      cleanQueueL.freeBuffer();
+      queueR.freeBuffer();
+      cleanQueueR.freeBuffer();
+      return;
+    }
+
+    for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
+      float cL = static_cast<float>(cleanL[i]) / 32768.0f;
+      float cR = static_cast<float>(cleanR[i]) / 32768.0f;
+      float dL = static_cast<float>(dirtyL[i]) / 32768.0f;
+      float dR = static_cast<float>(dirtyR[i]) / 32768.0f;
+
+      dL = processDirt(dL);
+      dR = processDirt(dR);
+
+      if (secondaryVoiceLevel > 0.0f) {
+        float cross = 0.5f * secondaryVoiceLevel;
+        float ghostL = dL * (1.0f - cross) + dR * cross;
+        float ghostR = dR * (1.0f - cross) + dL * cross;
+        dL = ghostL;
+        dR = ghostR;
+      }
+
+      float mixedL = (1.0f - blockMixAmount) * cL + blockMixAmount * dL;
+      float mixedR = (1.0f - blockMixAmount) * cR + blockMixAmount * dR;
+
+      if (bloomAmount > 0.0f) {
+        mixedL = applyBloomLimiter(mixedL, bloomAmount, bloomEnvelopeL);
+        mixedR = applyBloomLimiter(mixedR, bloomAmount, bloomEnvelopeR);
+      }
+
+      mixedL = constrain(mixedL, -1.0f, 1.0f);
+      mixedR = constrain(mixedR, -1.0f, 1.0f);
+      outL[i] = static_cast<int16_t>(mixedL * 32767.0f);
+      outR[i] = static_cast<int16_t>(mixedR * 32767.0f);
+    }
+
+    outputQueueL.playBuffer();
+    outputQueueR.playBuffer();
+    queueL.freeBuffer();
+    cleanQueueL.freeBuffer();
+    queueR.freeBuffer();
+    cleanQueueR.freeBuffer();
+    return;
   }
 
   if (leftReady) {
-    // Mix left channel from clean and dirty delay buffers. Audio blocks are
-    // 128-sample chunks. Teensy represents them as int16_t where ±32767 equals
-    // ±1.0f. We convert to floats for clarity then convert back.
     int16_t *dirty = queueL.readBuffer();
     int16_t *clean = cleanQueueL.readBuffer();
     int16_t *outBlock = outputQueueL.getBuffer();
@@ -233,9 +320,11 @@ void processAudioQueues() {
       for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
         float c = static_cast<float>(clean[i]) / 32768.0f;
         float d = static_cast<float>(dirty[i]) / 32768.0f;
-        // Apply dirt and blend with clean signal.
         d = processDirt(d);
         float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
+        if (bloomAmount > 0.0f) {
+          mixed = applyBloomLimiter(mixed, bloomAmount, bloomEnvelopeL);
+        }
         mixed = constrain(mixed, -1.0f, 1.0f);
         outBlock[i] = static_cast<int16_t>(mixed * 32767.0f);
       }
@@ -246,7 +335,6 @@ void processAudioQueues() {
   }
 
   if (rightReady) {
-    // Repeat the same dance for the right channel.
     int16_t *dirty = queueR.readBuffer();
     int16_t *clean = cleanQueueR.readBuffer();
     int16_t *outBlock = outputQueueR.getBuffer();
@@ -257,9 +345,11 @@ void processAudioQueues() {
       for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
         float c = static_cast<float>(clean[i]) / 32768.0f;
         float d = static_cast<float>(dirty[i]) / 32768.0f;
-        // Apply dirt and blend with clean signal.
         d = processDirt(d);
         float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
+        if (bloomAmount > 0.0f) {
+          mixed = applyBloomLimiter(mixed, bloomAmount, bloomEnvelopeR);
+        }
         mixed = constrain(mixed, -1.0f, 1.0f);
         outBlock[i] = static_cast<int16_t>(mixed * 32767.0f);
       }
