@@ -10,6 +10,7 @@
 // notebook.
 #include "controls.h"
 #include "audio_pipeline.h"
+#include "chaos.h"
 #include "ui.h"
 #include "Arduino.h"
 
@@ -26,6 +27,7 @@ int buttonPressCount = 0;       // Tracks current chaos ladder position (0..8)
 const int maxChaosLevel = 8;    // Upper bound for chaos ladder
 bool reseedButtonState = false; // Edge-detect latch for reseed button
 bool resetButtonState = false;  // Edge-detect latch for reset button
+bool chaosChordLatched = false; // Prevent multiple toggles during dual-button hold
 
 // Globals exposed in controls.h so the audio pipeline can read them without
 // circular dependencies. Defaults are intentionally modest so the unit powers on
@@ -50,38 +52,53 @@ void updateControl() {
   // === Button handling ===
   // Buttons are debounced with a primitive delay to keep the code legible for
   // beginners. See README for links if you want to replace it with a real FSM.
+  bool reseedPressed = digitalRead(reseedButtonPin) == LOW;
+  bool resetPressed = digitalRead(resetButtonPin) == LOW;
 
-  // Check reseed button to increase chaos level
-  if (digitalRead(reseedButtonPin) == LOW) {
+  // Dual-button chord toggles the optional chaos modulators.
+  if (reseedPressed && resetPressed) {
     delay(50);
-    if (!reseedButtonState) {
-      reseedButtonState = true;
-      buttonPressCount++;
-      if (buttonPressCount > maxChaosLevel) buttonPressCount = maxChaosLevel;
-      noiseAmount = 20 + buttonPressCount * 5;
-      density = 5 + buttonPressCount * 10;
-      noiseAmount = constrain(noiseAmount, 20, 60);
-      density = constrain(density, 5, 100);
-      randomSeed(analogRead(randomSourcePin));
-      updateLEDBar(buttonPressCount);
+    bool chordStillDown =
+        digitalRead(reseedButtonPin) == LOW && digitalRead(resetButtonPin) == LOW;
+    if (chordStillDown && !chaosChordLatched) {
+      chaosChordLatched = true;
+      bool enabled = toggleChaosModulators();
+      Serial.print("[chaos] modulators ");
+      Serial.println(enabled ? "engaged" : "bypassed");
     }
   } else {
-    reseedButtonState = false;
-  }
+    chaosChordLatched = false;
 
-  // Check reset button to clear chaos
-  if (digitalRead(resetButtonPin) == LOW) {
-    delay(50);
-    if (!resetButtonState) {
-      resetButtonState = true;
-      buttonPressCount = 0;
-      noiseAmount = 20;
-      density = 5;
-      randomSeed(analogRead(randomSourcePin));
-      updateLEDBar(buttonPressCount);
+    // Check reseed button to increase chaos level
+    if (reseedPressed) {
+      delay(50);
+      if (!reseedButtonState) {
+        reseedButtonState = true;
+        buttonPressCount++;
+        if (buttonPressCount > maxChaosLevel) buttonPressCount = maxChaosLevel;
+        noiseAmount = 20 + buttonPressCount * 5;
+        density = 5 + buttonPressCount * 10;
+        noiseAmount = constrain(noiseAmount, 20, 60);
+        density = constrain(density, 5, 100);
+        randomSeed(analogRead(randomSourcePin));
+      }
+    } else {
+      reseedButtonState = false;
     }
-  } else {
-    resetButtonState = false;
+
+    // Check reset button to clear chaos
+    if (resetPressed) {
+      delay(50);
+      if (!resetButtonState) {
+        resetButtonState = true;
+        buttonPressCount = 0;
+        noiseAmount = 20;
+        density = 5;
+        randomSeed(analogRead(randomSourcePin));
+      }
+    } else {
+      resetButtonState = false;
+    }
   }
 
   // === Pot handling ===
@@ -108,7 +125,15 @@ void updateControl() {
   Serial.print(" | Feedback: "); Serial.print(feedbackAmount);
   Serial.print(" | Noise: "); Serial.print(noiseAmount);
   Serial.print(" | Density: "); Serial.print(density);
-  Serial.print(" | Mix: "); Serial.println(mixAmount);
+  Serial.print(" | Mix: "); Serial.print(mixAmount);
+  Serial.print(" | ChaosMods: ");
+  bool modsEnabled = chaosModulatorsEnabled();
+  Serial.println(modsEnabled ? "on" : "off");
+
+  ChaosSnapshot snapshot = latestChaosSnapshot();
+  renderStatusUI(buttonPressCount, modsEnabled, mixAmount, feedbackAmount,
+                 static_cast<float>(noiseAmount), static_cast<float>(density),
+                 snapshot);
 }
 
 #ifdef __CPPCHECK__
@@ -117,7 +142,6 @@ void updateControl() {
 [[maybe_unused]] static void __cppcheck_controls_reference() {
   setupControls();
   updateControl();
-  updateLEDBar(0);
 }
 [[maybe_unused]] static const auto __cppcheck_controls_anchor =
     (__cppcheck_controls_reference(), 0);

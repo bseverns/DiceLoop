@@ -24,6 +24,8 @@ reverse-engineer the trickery.
   - Pin `8` – reseed the chaos
   - Pin `7` – reset to calm
 - **LED bar** driven through a shift register on pins `2`, `3`, and `4`
+- **(Optional) I²C OLED** on the Teensy 4.0's default SDA/SCL (pins `18`/`19`). Any
+  3.3 V-friendly 128×32 or 128×64 SSD1306 panel works.
 
   ***gear diagrams soon***
 
@@ -50,10 +52,10 @@ hardware without spelunking the whole codebase.
 ```
 
 The `processAudioQueues()` function drains the `queue*` buffers, applies the
-bit-crushing chaos via `processDirt()`, blends the dry/wet signals, and pipes
-everything into `limiter1` before the final DAC hop. The ASCII diagram is rough,
-but the code comments mirror it line-by-line so you can always map theory to
-firmware.
+dynamic dirt engines living in `processDirt()`, blends the dry/wet signals, and
+pipes everything into `limiter1` before the final DAC hop. The ASCII diagram is
+rough, but the code comments mirror it line-by-line so you can always map theory
+to firmware.
 
 ## Control Map & Chaos Knob Lore
 
@@ -75,9 +77,74 @@ The chaos ladder is intentionally dramatic: each reseed press ratchets both the
 bit crushing depth and the glitch density, while also reseeding the RNG from an
 analog pin so the statistical flavour changes in a way you can actually hear.
 
-`src/audio_pipeline.cpp` handles the mixing and bit‑crushing while
+`src/audio_pipeline.cpp` handles the mixing and dirt engines while
 `src/controls.cpp` maps the knobs and buttons to those globals. It's all plain
 C++ and Arduino APIs—poke around and hack it.
+
+### Status Display Playground
+
+The old LED bar is still the quick-look chaos meter, but there is now room for a
+tiny OLED to narrate what the dirt engines are doing in real time. Wire any
+SSD1306 panel to SDA/SCL (pins `18`/`19`) plus 3.3 V and ground, then enable the
+firmware support with:
+
+```ini
+; platformio.ini
+build_flags =
+  -DDICELOOP_ENABLE_OLED=1
+  ; optionally override geometry:
+  ; -DDICELOOP_OLED_WIDTH=128
+  ; -DDICELOOP_OLED_HEIGHT=64
+  ; -DDICELOOP_OLED_ADDRESS=0x3C
+```
+
+Once flipped on, `renderStatusUI()` paints live readouts for mix, feedback,
+noise, density, and the modulation offsets coming back from
+`latestChaosSnapshot()`. The final line shows how hard the chaos modulators are
+tugging on the mix/feedback/fuzz trio, and the mini meters on the right keep the
+values legible even when you're playing in the dark. Skip the macro and the code
+compiles down to the same LED-only firmware as before.
+
+### Dirt Engine Anatomy
+
+`processDirt()` now juggles three little DSP gremlins instead of a single
+bit-crusher:
+
+- **Bit crush core** – The OG reduction to 2–8 bits still anchors the sound and
+  tracks the `noiseAmount` pot.
+- **Wavefold smear** – A sine-based fold keeps harmonic chaos musical. The fold
+  accumulates into a short memory buffer so micro-movements of the knobs or
+  chaos ladder read as motion instead of clicks.
+- **Sample-and-hold stutter** – Density steers how quickly the engine freezes
+  and relaunches audio grains. Slow sweeps feel like a dying tape deck; full
+  tilt becomes digital chopper heaven.
+
+Those outputs are blended on-the-fly and then handed to a slow tremolo and a
+touch of controlled fuzz. The knobs stay expressive because each axis hits a
+different part of the engine: `noiseAmount` sculpts harmonic teeth, `density`
+nudges the rhythmic edits, and the chaos ladder reseeds the whole mess so it
+never loops in place. Crack open `src/audio_pipeline.cpp` to study the math—it's
+annotated so you can rip out pieces or wire in your own machines.
+
+### Optional Chaos Modulators
+
+Feeling brave? Hold both buttons at once to flip a hidden switch that lets a
+pair of modulators ride shotgun with your knob moves. The reseed button + reset
+button chord calls into `toggleChaosModulators()` and prints the new state over
+serial so you always know whether the gremlins are active.
+
+- **Mix sway** – A slow LFO nudges the wet/dry balance. Higher density means
+  faster swings, so glitch hurricanes get a little extra motion.
+- **Feedback drift** – A logistic-map driven offset leans the feedback mixer in
+  and out of danger. It stays clamped between polite and “about to howl” so you
+  can feel the tension without blowing speakers.
+- **Fuzz wobble** – The fuzz amount inside `processDirt()` gets a breathing
+  multiplier tied to the noise pot. Crank the noise and the grit pulses like a
+  busted power rail.
+
+All of that logic lives in `src/chaos.cpp`. The modulators stay dormant until
+you ask for them, so conservative players can keep the box tight while everyone
+else gets an extra dimension of instability on command.
 
 ### Teaching Notes
 

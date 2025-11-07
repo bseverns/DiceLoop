@@ -5,8 +5,12 @@
 #ifndef UI
 #define UI
 
-void setupUI();               // configure shift-register pins
+struct ChaosSnapshot;
+
+void setupUI();               // configure shift-register pins / optional displays
 void updateLEDBar(int level); // display current chaos level (0–8 LEDs)
+void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float feedback,
+                    float noise, float density, const ChaosSnapshot &chaosMods);
 
 #endif
 

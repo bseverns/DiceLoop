@@ -24,7 +24,9 @@
 // queue buffers so we can sprinkle in probabilistic bit crushing.
 #include "audio_pipeline.h"
 #include "Arduino.h"
+#include "chaos.h"
 #include "controls.h"
+#include <cmath>
 
 // === Audio Objects ===
 AudioInputI2S          i2sIn;
@@ -56,34 +58,121 @@ AudioConnection patchCord10(limiter1, 1, i2sOut, 1);
 // crushed chaos.
 float mixAmount = 0.5f;
 
+namespace {
+// State for the dynamic "dirt engine" cluster. All knobs steer these modulators
+// so the grit feels alive instead of binary on/off switches.
+float tremPhase = 0.0f;
+float foldMemory = 0.0f;
+float heldSample = 0.0f;
+int holdCountdown = 0;
+
+// Block-scope modulation shared across the current audio buffers. `processDirt`
+// reads these so the optional chaos modulators can warp parameters without
+// adding more arguments or globals elsewhere.
+float blockMixAmount = 0.5f;
+float blockFuzzScale = 1.0f;
+float currentDensityNorm = 0.0f;
+float currentNoiseNorm = 0.0f;
+
+constexpr float twoPi = 2.0f * PI;
+
+float applyBitCrush(float sample, float noiseNorm) {
+  // Map 0..1 → 8..2 bits of resolution. Rounding keeps transitions smooth when
+  // the knob jitters or the chaos ladder nudges `noiseAmount`.
+  int crushBits = static_cast<int>(roundf(2.0f + (1.0f - noiseNorm) * 6.0f));
+  crushBits = constrain(crushBits, 2, 8);
+  int steps = 1 << crushBits;
+  int crushed = static_cast<int>(sample * steps);
+  return static_cast<float>(crushed) / steps;
+}
+
+float applyWaveFold(float sample, float noiseNorm) {
+  // A sine fold keeps things musical while still adding chaos. `foldMemory`
+  // smears the movement so tiny control changes translate into chewy motion.
+  float drive = 1.0f + noiseNorm * 5.0f;
+  float folded = sinf(sample * drive * PI);
+  foldMemory = 0.92f * foldMemory + 0.08f * folded;
+  return constrain(folded + 0.5f * foldMemory, -1.0f, 1.0f);
+}
+
+float applyStutter(float sample, float densityNorm) {
+  // Sample-and-hold creates rhythmic chokes. Higher density → faster retrigs;
+  // lower density → longer freezes that feel more like tape stoppages.
+  int window = 3 + static_cast<int>((1.0f - densityNorm) * 160.0f);
+  if (--holdCountdown <= 0) {
+    holdCountdown = window;
+    heldSample = sample;
+  }
+  float freezeBlend = densityNorm * densityNorm; // gentle curve, 0..1.
+  return heldSample * freezeBlend + sample * (1.0f - freezeBlend);
+}
+
+float nextTremoloGain(float densityNorm) {
+  // Chaotic tremolo that gets quicker as density rises. Depth stays shallow so
+  // it feels like motion rather than muting.
+  float rate = 0.35f + densityNorm * 7.5f; // Hz
+  tremPhase += twoPi * (rate / AUDIO_SAMPLE_RATE_EXACT);
+  if (tremPhase > twoPi) {
+    tremPhase -= twoPi;
+  }
+  return 0.75f + 0.25f * sinf(tremPhase);
+}
+} // namespace
+
 float processDirt(float sample) {
-  // Apply glitch only on a percentage of samples defined by `density`.
-  // `density` comes from the controls module and represents 0–100%.
+  // Apply glitch only on a percentage of samples defined by `density`. The rest
+  // sail through untouched so the delay never loses its sense of pulse.
   if (random(100) >= density) {
     return sample;
   }
 
-  // Map noiseAmount (0-60) to a reduction in bit depth. Higher values mean
-  // fewer bits and therefore harsher crushing. The formula intentionally keeps
-  // the lowest resolution at 2 bits so the waveform retains *some* structure.
-  int crushBits = 8 - noiseAmount / 10; // roughly 8..2 bits of resolution
-  if (crushBits < 2) crushBits = 2;
-  int steps = 1 << crushBits;
+  float densityNorm = currentDensityNorm;
+  float noiseNorm = currentNoiseNorm;
 
-  int crushed = int(sample * steps);
-  float crushedSample = float(crushed) / steps;
+  float crushed = applyBitCrush(sample, noiseNorm);
+  float folded = applyWaveFold(sample, noiseNorm);
+  float stuttered = applyStutter(crushed, densityNorm);
 
-  // Inject random noise scaled by noiseAmount to add fuzziness. Random returns
-  // a 15-bit integer; we normalise to ±1.0 and scale by a 0–0.6 factor.
-  float noise = ((float)random(-32768, 32767) / 32767.0f) * (noiseAmount / 100.0f);
-  float result = crushedSample + noise;
+  // Density leans into the rhythmic stutter, noise controls harmonic brutality.
+  float toneBlend = (1.0f - noiseNorm) * crushed + noiseNorm * folded;
+  float rhythmBlend = (1.0f - densityNorm) * toneBlend + densityNorm * stuttered;
 
-  result = constrain(result, -1.0f, 1.0f);
-  return result;
+  // Sprinkle controlled fuzz so even static notes evolve. Noise knob sets how
+  // hairy the fuzz gets, density dictates how often new grains are minted.
+  float fuzz = static_cast<float>(random(-32768, 32767)) / 32767.0f;
+  float fuzzAmount = (0.08f + 0.42f * noiseNorm) * (0.4f + 0.6f * densityNorm);
+  fuzzAmount *= blockFuzzScale;
+  float result = rhythmBlend + fuzz * fuzzAmount;
+
+  result *= nextTremoloGain(densityNorm);
+  return constrain(result, -1.0f, 1.0f);
 }
 
 void processAudioQueues() {
-  if (queueL.available() && cleanQueueL.available()) {
+  bool leftReady = queueL.available() && cleanQueueL.available();
+  bool rightReady = queueR.available() && cleanQueueR.available();
+  if (!leftReady && !rightReady) {
+    return;
+  }
+
+  currentDensityNorm = constrain(density / 100.0f, 0.0f, 1.0f);
+  currentNoiseNorm = constrain(noiseAmount / 60.0f, 0.0f, 1.0f);
+
+  ChaosSnapshot chaosSnapshot =
+      updateChaosModulators(currentDensityNorm, currentNoiseNorm,
+                            AUDIO_BLOCK_SAMPLES);
+  blockMixAmount = constrain(mixAmount + chaosSnapshot.mixOffset, 0.0f, 1.0f);
+  blockFuzzScale = chaosSnapshot.fuzzGain;
+
+  if (chaosModulatorsEnabled()) {
+    float modFeedback =
+        constrain(feedbackAmount + chaosSnapshot.feedbackOffset, 0.0f, 0.99f);
+    feedbackMixer.gain(1, modFeedback);
+  } else {
+    feedbackMixer.gain(1, feedbackAmount);
+  }
+
+  if (leftReady) {
     // Mix left channel from clean and dirty delay buffers. Audio blocks are
     // 128-sample chunks. Teensy represents them as int16_t where ±32767 equals
     // ±1.0f. We convert to floats for clarity then convert back.
@@ -94,7 +183,7 @@ void processAudioQueues() {
       float d = (float)dirty->data[i] / 32768.0f;
       // Apply dirt and blend with clean signal.
       d = processDirt(d);
-      float mixed = (1.0f - mixAmount) * c + mixAmount * d;
+      float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
       mixed = constrain(mixed, -1.0f, 1.0f);
       clean->data[i] = (int16_t)(mixed * 32767.0f);
     }
@@ -102,7 +191,7 @@ void processAudioQueues() {
     queueL.freeBuffer();
   }
 
-  if (queueR.available() && cleanQueueR.available()) {
+  if (rightReady) {
     // Repeat the same dance for the right channel.
     audio_block_t *dirty = queueR.readBuffer();
     audio_block_t *clean = cleanQueueR.readBuffer();
@@ -111,7 +200,7 @@ void processAudioQueues() {
       float d = (float)dirty->data[i] / 32768.0f;
       // Apply dirt and blend with clean signal.
       d = processDirt(d);
-      float mixed = (1.0f - mixAmount) * c + mixAmount * d;
+      float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
       mixed = constrain(mixed, -1.0f, 1.0f);
       clean->data[i] = (int16_t)(mixed * 32767.0f);
     }
