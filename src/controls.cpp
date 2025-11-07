@@ -112,7 +112,7 @@ void updateControl() {
   // Feedback: convert to a 0.00–1.00 linear gain, then feed into the mixer.
   int potFeedbackValue = analogRead(potFeedbackPin);
   feedbackAmount = map(potFeedbackValue, 0, 1023, 0, 100) / 100.0;
-  feedbackMixer.gain(1, feedbackAmount);
+  setFeedbackGain(1, feedbackAmount);
 
   // Noise + density pots override the ladder when turned. We still keep the
   // ladder counts so the LED bar reflects the most recent button action.

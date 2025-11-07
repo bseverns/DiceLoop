@@ -41,7 +41,7 @@ hardware without spelunking the whole codebase.
                                     └───────┬───────┬────┘
                                             │       │
                                             ▼       ▼
-                                     queueL/queueR  ──► limiter1 ──► I2S out
+                                     queueL/queueR  ──► outputQueue* ──► I2S out
                                             │
                                             ▼
                                       feedbackMixer ◄─────◄─ filter1
@@ -49,9 +49,9 @@ hardware without spelunking the whole codebase.
 
 The `processAudioQueues()` function drains the `queue*` buffers, applies the
 dynamic dirt engines living in `processDirt()`, blends the dry/wet signals, and
-pipes everything into `limiter1` before the final DAC hop. The ASCII diagram is
-rough, but the code comments mirror it line-by-line so you can always map theory
-to firmware.
+pushes the mixed result into a pair of `AudioPlayQueue` nodes that ferry the
+audio straight to the DAC. The ASCII diagram is rough, but the code comments
+mirror it line-by-line so you can always map theory to firmware.
 
 ## Control Map & Chaos Knob Lore
 
@@ -154,9 +154,9 @@ else gets an extra dimension of instability on command.
 - **Probability-based glitching:** `density` is interpreted as a % chance that
   we crush the current sample. This keeps the behaviour simple and makes it
   easy to swap in other distributions (Gaussian, correlated noise, etc.).
-- **Feedback safety:** The limiter and explicit `constrain()` calls keep the
-  feedback loop from rage quitting. Kill them if you want self-oscillation, but
-  do it intentionally.
+- **Feedback safety:** The explicit `constrain()` calls keep the feedback loop
+  from rage quitting. Yank them if you want full self-oscillation, but do it
+  intentionally.
 
 ## Build & Flash
 Built with [PlatformIO](https://platformio.org/). From the repo root:
