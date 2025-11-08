@@ -361,9 +361,10 @@ void processAudioQueues() {
 }
 
 void setupAudioPipeline() {
-  // Reserve audio memory buffers. Each block equals 128 samples, so 60 blocks
-  // gives the delay ample breathing room without starving the mixer.
-  AudioMemory(60);
+  // Reserve audio memory buffers. Each block equals 128 samples. Running the
+  // macro delay wide open needs ~1180 ms worth of history plus headroom for the
+  // state variable filter and record/play queues, so we overprovision.
+  AudioMemory(512);
 
   // Wake the SGTL5000 codec on the Teensy Audio Shield. This is the actual ADC
   // front-end we use for line-level signals. The Teensy 4.0's on-chip ADC stays
