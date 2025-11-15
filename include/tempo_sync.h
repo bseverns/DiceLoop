@@ -6,8 +6,24 @@
 #ifndef TEMPO_SYNC_H
 #define TEMPO_SYNC_H
 
+enum class TempoSource {
+  Internal,
+  External,
+};
+
+using TempoListener = void (*)(float periodMs, TempoSource source);
+
 void setupTempoSync();
 void updateTempoSync();
 void applyPotTempoBase(float milliseconds);
+
+void registerTempoListener(TempoListener listener);
+void unregisterTempoListener(TempoListener listener);
+
+float tempoSyncCurrentPeriodMs();
+float tempoSyncCurrentBpm();
+TempoSource tempoSyncCurrentSource();
+float tempoSyncPulseProgress();
+bool tempoSyncHasExternalClock();
 
 #endif

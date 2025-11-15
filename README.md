@@ -186,6 +186,27 @@ If neither source speaks up for ~2.5 seconds we fall back to the delay pot's
 reading just like the legacy firmware. You get the best of both worlds: a stomp
 box feel with DAW-tight sync when the studio rig sends clock.
 
+The tempo glue also sprouted a tiny observer API so side projects can react to
+incoming pulses without spelunking the audio engine. Call
+`registerTempoListener()` with a lambda (or old-school function pointer) and
+you'll get the measured period in milliseconds plus a `TempoSource` flag telling
+you whether that beat came from the pot or the outside world:
+
+```cpp
+registerTempoListener([](float periodMs, TempoSource source) {
+  Serial.print("tempo @ ");
+  Serial.print(60000.0f / periodMs);
+  Serial.print(" bpm from ");
+  Serial.println(source == TempoSource::External ? "DAW" : "panel");
+});
+```
+
+Flip on `DICELOOP_ENABLE_OLED` and you'll spot the payoff immediately: the top
+row now calls out `Md`, `St`, and `Clk` status, while a tiny strobe in the
+corner pulses in time with whatever clock we're chasing. External MIDI taps add
+a vertical accent so you can tell at a glance when the DAW is the one steering
+the chops.
+
 ### Dirt Engine Anatomy
 
 `processDirt()` now juggles a stack of DSP gremlins through a tiny stage
