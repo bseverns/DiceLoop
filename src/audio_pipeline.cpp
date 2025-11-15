@@ -185,6 +185,30 @@ static_assert(static_cast<size_t>(DirtStage::Count) ==
 constexpr uint8_t kAllDirtStagesMask =
     (1u << static_cast<uint8_t>(DirtStage::Count)) - 1u;
 
+struct RegisteredDirtStack {
+  const char *id;
+  const char *label;
+  uint8_t mask;
+};
+
+const RegisteredDirtStack curatedDirtStacks[] = {
+    {"full_send", "Full chaos stack", kAllDirtStagesMask},
+    {"crush_hiccups",
+     "Crush + stutter hiccups",
+     static_cast<uint8_t>(dirtStageBit(DirtStage::BitCrush) |
+                          dirtStageBit(DirtStage::Stutter))},
+    {"sine_smear",
+     "Crush + fold smear",
+     static_cast<uint8_t>(dirtStageBit(DirtStage::BitCrush) |
+                          dirtStageBit(DirtStage::WaveFold))},
+    {"fuzz_bloom",
+     "Fold + fuzz bloom",
+     static_cast<uint8_t>(dirtStageBit(DirtStage::WaveFold) |
+                          dirtStageBit(DirtStage::Fuzz))},
+    {"stutter_gate", "Tempo stutter focus",
+     dirtStageBit(DirtStage::Stutter)},
+};
+
 uint8_t activeDirtStageMask = kAllDirtStagesMask;
 
 bool stageIdEquals(const char *lhs, const char *rhs) {
@@ -420,6 +444,36 @@ bool dirtStageById(const char *id, DirtStage *stage) {
   return false;
 }
 
+size_t curatedDirtStackCount() {
+  return sizeof(curatedDirtStacks) / sizeof(curatedDirtStacks[0]);
+}
+
+bool curatedDirtStackInfo(size_t index, DirtStackInfo *info) {
+  if (!info || index >= curatedDirtStackCount()) {
+    return false;
+  }
+  const RegisteredDirtStack &entry = curatedDirtStacks[index];
+  info->id = entry.id;
+  info->label = entry.label;
+  info->mask = entry.mask & kAllDirtStagesMask;
+  return true;
+}
+
+bool curatedDirtStackById(const char *id, DirtStackInfo *info) {
+  if (!id || !info) {
+    return false;
+  }
+  for (const auto &entry : curatedDirtStacks) {
+    if (stageIdEquals(entry.id, id)) {
+      info->id = entry.id;
+      info->label = entry.label;
+      info->mask = entry.mask & kAllDirtStagesMask;
+      return true;
+    }
+  }
+  return false;
+}
+
 float processDirt(float sample) {
   if (activeDirtStageMask == 0) {
     return sample;
@@ -503,6 +557,13 @@ void processAudioQueues() {
       constrain(bloomAmount + chaosSnapshot.bloomDepthOffset, 0.0f, 1.0f);
   const float blockPanOffset =
       constrain(chaosSnapshot.secondaryVoicePan, -1.0f, 1.0f);
+  const float blockBloomLimiterGain =
+      constrain(chaosSnapshot.bloomLimiterGain, 0.25f, 1.75f);
+  const float blockBloomLimiterAmount =
+      constrain(blockBloomAmount * blockBloomLimiterGain, 0.0f, 1.0f);
+  const float blockSecondaryFeedback =
+      constrain(secondaryVoiceLevel + chaosSnapshot.secondaryFeedbackOffset, 0.0f,
+                1.0f);
 
   float baseFeedback = constrain(feedbackAmount + bloomFeedbackBoost, 0.0f, 0.99f);
   if (chaosModulatorsEnabled()) {
@@ -543,8 +604,8 @@ void processAudioQueues() {
       dL = processDirt(dL);
       dR = processDirt(dR);
 
-      if (secondaryVoiceLevel > 0.0f) {
-        float cross = 0.5f * secondaryVoiceLevel;
+      if (blockSecondaryFeedback > 0.0f) {
+        float cross = 0.5f * blockSecondaryFeedback;
         float crossFromR = constrain(cross * (1.0f - blockPanOffset), 0.0f, 1.0f);
         float crossFromL = constrain(cross * (1.0f + blockPanOffset), 0.0f, 1.0f);
         float ghostL = dL * (1.0f - crossFromR) + dR * crossFromR;
@@ -556,9 +617,11 @@ void processAudioQueues() {
       float mixedL = (1.0f - blockMixAmount) * cL + blockMixAmount * dL;
       float mixedR = (1.0f - blockMixAmount) * cR + blockMixAmount * dR;
 
-      if (blockBloomAmount > 0.0f) {
-        mixedL = applyBloomLimiter(mixedL, blockBloomAmount, bloomEnvelopeL);
-        mixedR = applyBloomLimiter(mixedR, blockBloomAmount, bloomEnvelopeR);
+      if (blockBloomLimiterAmount > 0.0f) {
+        mixedL =
+            applyBloomLimiter(mixedL, blockBloomLimiterAmount, bloomEnvelopeL);
+        mixedR =
+            applyBloomLimiter(mixedR, blockBloomLimiterAmount, bloomEnvelopeR);
       }
 
       mixedL = constrain(mixedL, -1.0f, 1.0f);
@@ -589,8 +652,9 @@ void processAudioQueues() {
         float d = static_cast<float>(dirty[i]) / 32768.0f;
         d = processDirt(d);
         float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
-        if (blockBloomAmount > 0.0f) {
-          mixed = applyBloomLimiter(mixed, blockBloomAmount, bloomEnvelopeL);
+        if (blockBloomLimiterAmount > 0.0f) {
+          mixed =
+              applyBloomLimiter(mixed, blockBloomLimiterAmount, bloomEnvelopeL);
         }
         mixed = constrain(mixed, -1.0f, 1.0f);
         outBlock[i] = static_cast<int16_t>(mixed * 32767.0f);
@@ -614,8 +678,9 @@ void processAudioQueues() {
         float d = static_cast<float>(dirty[i]) / 32768.0f;
         d = processDirt(d);
         float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
-        if (blockBloomAmount > 0.0f) {
-          mixed = applyBloomLimiter(mixed, blockBloomAmount, bloomEnvelopeR);
+        if (blockBloomLimiterAmount > 0.0f) {
+          mixed =
+              applyBloomLimiter(mixed, blockBloomLimiterAmount, bloomEnvelopeR);
         }
         mixed = constrain(mixed, -1.0f, 1.0f);
         outBlock[i] = static_cast<int16_t>(mixed * 32767.0f);

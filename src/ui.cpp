@@ -323,6 +323,12 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
     if (bloomDelta >= 0) oled.print('+');
     oled.print(bloomDelta);
     oled.print('%');
+    int limiterDelta =
+        static_cast<int>(roundf((chaosMods.bloomLimiterGain - 1.0f) * 100.0f));
+    oled.print(" Lm ");
+    if (limiterDelta >= 0) oled.print('+');
+    oled.print(limiterDelta);
+    oled.print('%');
     oled.print(" Pn ");
     if (panDelta >= 0) {
       oled.print('R');
@@ -332,6 +338,13 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
     }
     oled.print(panDelta);
     oled.print('%');
+    int ghostDelta =
+        static_cast<int>(roundf(chaosMods.secondaryFeedbackOffset * 100.0f));
+    oled.print(" Gh ");
+    if (ghostDelta >= 0) oled.print('+');
+    oled.print(ghostDelta);
+    oled.print('%');
+    drawChaosMeterStack(chaosMods);
   } else {
     oled.print("Chord=chaos, hold=tempo");
   }
@@ -352,7 +365,10 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
 [[maybe_unused]] static void __cppcheck_ui_reference() {
   setupUI();
   updateLEDBar(0);
-  renderStatusUI(0, false, 0.5f, 0.25f, 0.0f, 0.0f, ChaosSnapshot{});
+  ChaosSnapshot snapshot{};
+  snapshot.fuzzGain = 1.0f;
+  snapshot.bloomLimiterGain = 1.0f;
+  renderStatusUI(0, false, 0.5f, 0.25f, 0.0f, 0.0f, snapshot);
 }
 [[maybe_unused]] static const auto __cppcheck_ui_anchor =
     (__cppcheck_ui_reference(), 0);
