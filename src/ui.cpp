@@ -113,6 +113,50 @@ void drawSignedMeter(int y, float value, float maxMagnitude) {
   }
 }
 
+// Slim bipolar meter strips so we can stack multiple chaos signals in the
+// bottom row without clobbering the knob readouts. Each strip is 3 px tall with
+// a centre tick marking zero.
+void drawSlimSignedMeter(int y, float value, float maxMagnitude) {
+  const int x = meterX();
+  const int width = meterWidth();
+  const int height = 3;
+  if (width <= 4 || maxMagnitude <= 0.0f) {
+    return;
+  }
+  const int innerWidth = width - 2;
+  const int mid = x + width / 2;
+  oled.drawRect(x, y, width, height, SSD1306_WHITE);
+  oled.drawFastVLine(mid, y, height, SSD1306_WHITE);
+
+  float normalised = constrain(value / maxMagnitude, -1.0f, 1.0f);
+  int fill = static_cast<int>(roundf(std::fabs(normalised) * (innerWidth / 2.0f)));
+  if (fill <= 0) {
+    return;
+  }
+  if (fill > innerWidth / 2) {
+    fill = innerWidth / 2;
+  }
+  if (normalised >= 0.0f) {
+    oled.fillRect(mid + 1, y + 1, fill, height - 2, SSD1306_WHITE);
+  } else {
+    oled.fillRect(mid - fill, y + 1, fill, height - 2, SSD1306_WHITE);
+  }
+}
+
+void drawChaosMeterStack(const ChaosSnapshot &chaosMods) {
+  const float values[] = {chaosMods.mixOffset,
+                          chaosMods.feedbackOffset,
+                          chaosMods.fuzzGain - 1.0f,
+                          chaosMods.bloomDepthOffset};
+  const float magnitudes[] = {0.2f, 0.4f, 0.5f, 0.5f};
+  const int laneCount = 4;
+  const int baseY = 20;
+  const int spacing = 3; // 3 px meter stacked with a 0 px gap
+  for (int i = 0; i < laneCount; ++i) {
+    drawSlimSignedMeter(baseY + i * spacing, values[i], magnitudes[i]);
+  }
+}
+
 void drawTempoPulse(float progress, bool external) {
   const int size = 7;
   const int padding = 2;
@@ -229,6 +273,11 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
   }
   drawTempoPulse(pulseProgress,
                  tempoSource == TempoSource::External && tempoSyncHasExternalClock());
+  ChaosSnapshot meterMods = chaosMods;
+  if (!modulatorsEnabled) {
+    meterMods = ChaosSnapshot{};
+  }
+  drawChaosMeterStack(meterMods);
 
   oled.setCursor(0, 8);
   oled.print("Chs ");
@@ -283,7 +332,6 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
     }
     oled.print(panDelta);
     oled.print('%');
-    drawSignedMeter(24, chaosMods.mixOffset, 0.2f);
   } else {
     oled.print("Chord=chaos, hold=tempo");
   }
