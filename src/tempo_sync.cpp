@@ -10,7 +10,7 @@
 #include <Arduino.h>
 
 #if defined(USB_MIDI) || defined(USB_AUDIO) || defined(USB_MIDI_SERIAL)
-#include <usbMIDI.h>
+#include <usb_midi.h>
 #define DICELOOP_TEMPO_HAVE_USB_MIDI 1
 #else
 #define DICELOOP_TEMPO_HAVE_USB_MIDI 0
