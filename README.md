@@ -25,7 +25,11 @@ reverse-engineer the trickery.
 - **(Optional) I²C OLED** on the Teensy 4.0's default SDA/SCL (pins `18`/`19`). Any
   3.3 V-friendly 128×32 or 128×64 SSD1306 panel works.
 
-  ***gear diagrams soon***
+<p align="center">
+  <img src="hardware/wiring/dice-loop-control-harness.svg" alt="DiceLoop Teensy 4.0 wiring harness map" width="760" />
+  <br />
+  <em>Pots ride the analog bus (A0/A1/A3/A4/A5), buttons dive to pins 7 &amp; 8, the LED bar chews on D2–D4, and the optional OLED taps SDA/SCL on 18/19. Route the harness like this and nothing smokes.</em>
+</p>
 
 Pin assignments live in `src/controls.cpp` and `src/ui.cpp` so you can swap
 hardware without spelunking the whole codebase.
