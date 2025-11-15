@@ -164,9 +164,10 @@ build_flags =
 Once flipped on, `renderStatusUI()` paints live readouts for mix, feedback,
 noise, density, and the modulation offsets coming back from
 `latestChaosSnapshot()`. The final line shows how hard the chaos modulators are
-tugging on the mix/feedback/fuzz trio, and the mini meters on the right keep the
-values legible even when you're playing in the dark. Skip the macro and the code
-compiles down to the same LED-only firmware as before.
+tugging on the mix/feedback/fuzz/bloom/ghost gang, and the stack of slim bipolar
+meters on the right turns the screen into a modulation diary: top strip is mix
+offset, then feedback shove, bloom limiter gain, and ghost-send feedback. Skip
+the macro and the code compiles down to the same LED-only firmware as before.
 
 ### External Tempo Sync (Tap + MIDI Clock)
 
