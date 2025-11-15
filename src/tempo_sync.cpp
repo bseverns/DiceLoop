@@ -10,9 +10,6 @@
 #include <Arduino.h>
 #include <cmath>
 
-using std::fabsf;
-using std::fmodf;
-
 #if defined(USB_MIDI) || defined(USB_MIDI_SERIAL) ||                               \
     defined(USB_MIDI_AUDIO_SERIAL) || defined(USB_AUDIO_MIDI_SERIAL) ||            \
     defined(USB_MIDI4_SERIAL) || defined(USB_MIDI16_SERIAL) ||                     \
@@ -55,7 +52,7 @@ uint8_t midiClockCount = 0;
 
 void notifyTempoListeners(float periodMs, TempoSource source, bool forceFire) {
   bool sourceChanged = (source != currentTempoSource);
-  bool periodChanged = fabsf(periodMs - lastTempoPeriodMs) > 0.01f;
+  bool periodChanged = std::fabs(periodMs - lastTempoPeriodMs) > 0.01f;
 
   lastTempoPeriodMs = periodMs;
   currentTempoSource = source;
@@ -251,7 +248,7 @@ float tempoSyncPulseProgress() {
   if (period <= 0.0f) {
     return 0.0f;
   }
-  float progress = fmodf(static_cast<float>(elapsed), period) / period;
+  float progress = std::fmod(static_cast<float>(elapsed), period) / period;
   if (progress < 0.0f) {
     progress = 0.0f;
   }
