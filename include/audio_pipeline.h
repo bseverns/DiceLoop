@@ -73,6 +73,7 @@ void setActiveDirtStages(uint8_t stageMask);
 uint8_t getActiveDirtStages();
 bool enableDirtStage(DirtStage stage, bool enabled);
 bool enableDirtStageById(const char *id, bool enabled);
+bool dirtStageById(const char *id, DirtStage *stage);
 
 void setupAudioPipeline();
 void processAudioQueues();

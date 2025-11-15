@@ -211,6 +211,37 @@ enableDirtStageById("fuzz", true);
 to present menus or save/load presets. No firmware edits required—just push a
 new mask down the pipe and the gremlins obey.
 
+### Stage-Morphing Presets
+
+The firmware now wires that registry into a tiny preset rack living in EEPROM.
+Four slots ship with curated blends (full chaos, crush+stutter, harmonic smear,
+and a fuzz-forward wash) and you can cycle them live:
+
+- **Hold the reseed button (~0.6 s)** to step *forward* through the slots.
+- **Hold the reset button (~0.6 s)** to step *backward* without touching the
+  chaos ladder.
+
+Short taps still reseed/reset the ladder, so you can stoke the density/noise
+grid without nuking your stage pick. The active slot survives power cycles;
+stage masks are sanitised against the current registry so future firmware
+updates won't load ghosts.
+
+Need to roll your own stacks? Crack open a serial monitor at 9600 baud and use
+the built-in commands:
+
+```
+preset list                     # dump masks + stage combos
+preset load 2                   # instantly jump to slot 2
+preset save 1 bit_crush fuzz    # overwrite slot 1 with named stages
+preset mask 3 0x5               # force a mask (bits follow dirtStageBit order)
+```
+
+`preset save` accepts the same case-insensitive IDs exposed by
+`dirtStageId()`, so your EEPROM playlist stays in sync with the code comments.
+`preset list` prints the active slot with a star so you can sanity check what
+the buttons will morph to next. Command spam is ignored gracefully—the parser
+only reacts when it sees the `preset` keyword.
+
 ### Optional Chaos Modulators
 
 Feeling brave? Hold both buttons at once to flip a hidden switch that lets a

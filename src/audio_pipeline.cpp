@@ -407,6 +407,19 @@ bool enableDirtStageById(const char *id, bool enabled) {
   return false;
 }
 
+bool dirtStageById(const char *id, DirtStage *stage) {
+  if (id == nullptr || stage == nullptr) {
+    return false;
+  }
+  for (const auto &entry : dirtStageRegistry) {
+    if (stageIdEquals(entry.id, id)) {
+      *stage = entry.stage;
+      return true;
+    }
+  }
+  return false;
+}
+
 float processDirt(float sample) {
   if (activeDirtStageMask == 0) {
     return sample;

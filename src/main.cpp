@@ -12,6 +12,7 @@
 #include "controls.h"
 #include "ui.h"
 #include "chaos.h"
+#include "stage_presets.h"
 
 void setup() {
   Serial.begin(9600);
@@ -22,6 +23,7 @@ void setup() {
   setupControls();
   setupAudioPipeline();
   setupChaos();
+  setupStagePresets();
 }
 
 void loop() {
@@ -29,6 +31,7 @@ void loop() {
   // and then drain audio queues. The order keeps latency low: we always process
   // control changes before pushing a fresh audio block.
   updateControl();
+  pollStagePresetSerial();
   processAudioQueues();
 }
 
