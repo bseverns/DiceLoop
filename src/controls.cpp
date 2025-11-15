@@ -11,6 +11,7 @@
 #include "controls.h"
 #include "audio_pipeline.h"
 #include "chaos.h"
+#include "tempo_sync.h"
 #include "ui.h"
 #include "Arduino.h"
 
@@ -183,7 +184,7 @@ void updateControl() {
 
   delay1.delay(0, primaryDelayMs);
   delay1.delay(1, secondaryDelayMs);
-  setStutterBasePeriodMs(primaryDelayMs);
+  applyPotTempoBase(primaryDelayMs);
   macroMixOverride = wetOverride;
   macroWetBias = wetBias;
   secondaryVoiceLevel = ghostBlend;

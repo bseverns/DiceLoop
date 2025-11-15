@@ -116,6 +116,11 @@ the chosen ranges work on Teensy 4.0 (3.3 V reference, 10-bit ADC, etc.).
 | Mix pot          | `A5`       | `mixAmount`     | 0.00 – 1.00 dry/wet crossfade |
 | Reseed button    | `8`        | chaos ladder    | Adds +5 bits of nastiness per press until clamped |
 | Reset button     | `7`        | chaos ladder    | Slams everything back to polite defaults |
+| Tap footswitch†  | `6`        | tempo sync      | Optional normally-open tap jack. Each stomp recalibrates the tempo grid. |
+
+† Wire the tap footswitch as normally-open to ground. The firmware leans on the
+Teensy's internal pull-up and averages the last few hits so a sloppy stomp
+doesn't spray the tempo.
 
 The chaos ladder is intentionally dramatic: each reseed press ratchets both the
 bit crushing depth and the glitch density, while also reseeding the RNG from an
@@ -163,6 +168,24 @@ tugging on the mix/feedback/fuzz trio, and the mini meters on the right keep the
 values legible even when you're playing in the dark. Skip the macro and the code
 compiles down to the same LED-only firmware as before.
 
+### External Tempo Sync (Tap + MIDI Clock)
+
+You asked for the chop grid to follow the outside world—now it does. The new
+tempo sync helper listens for two kinds of pulses:
+
+1. **Tap footswitch (pin 6).** Each time the contact closes to ground we record
+   the interval, average the last four swings, and hand the result to
+   `setStutterBasePeriodMs()`. That means a quick stomp instantly retunes the
+   tempo-locked density windows without touching the delay pot.
+2. **USB MIDI clock.** Drop 24 ppqn ticks into the Teensy over the USB Audio
+   device profile and the firmware measures a full quarter note, again feeding
+   the base-period setter. Start/Continue messages reset the accumulator; Stop
+   clears the clock counter so stale pulses don't ghost-write a new tempo.
+
+If neither source speaks up for ~2.5 seconds we fall back to the delay pot's
+reading just like the legacy firmware. You get the best of both worlds: a stomp
+box feel with DAW-tight sync when the studio rig sends clock.
+
 ### Dirt Engine Anatomy
 
 `processDirt()` now juggles a stack of DSP gremlins through a tiny stage
@@ -181,6 +204,10 @@ registry so you can pick who clocks in for a given gig:
     steps through musical subdivisions (whole notes down to 32nds) referenced
     against the main delay time. The hold windows quantise to audio block
     multiples so the chops land exactly on the beat.
+  - Want the chops to follow the room instead of your delay pot? Jack a
+    footswitch into pin 6 or feed the Teensy MIDI clock over USB. Each tap or
+    24 ppqn burst calls `setStutterBasePeriodMs()` behind the scenes so the
+    density ladder locks to the external tempo.
 - **Controlled fuzz** – Still polite until asked, but now promoted to a
   first-class stage. When active it sprinkles random hairs that scale with
   density and noise, then feeds the tremolo for a breathing, amp-on-the-edge
