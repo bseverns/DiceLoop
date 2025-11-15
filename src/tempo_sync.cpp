@@ -8,6 +8,7 @@
 
 #include "audio_pipeline.h"
 #include <Arduino.h>
+#include <cmath>
 
 #if defined(USB_MIDI) || defined(USB_MIDI_SERIAL) ||                               \
     defined(USB_MIDI_AUDIO_SERIAL) || defined(USB_AUDIO_MIDI_SERIAL) ||            \
@@ -26,6 +27,8 @@ constexpr unsigned long maxTapInterval = 2000; // ~30 BPM floor before we reset
 constexpr unsigned long tapDecayMillis = 2500; // fall back to pot tempo after idle
 constexpr size_t tapAverageWindow = 4;         // rolling average to calm jitter
 
+constexpr size_t tempoListenerSlots = 4;       // handful of hooks for UI/loggers
+
 unsigned long lastTapMillis = 0;
 unsigned long tapIntervals[tapAverageWindow] = {0};
 size_t tapIntervalCount = 0;
@@ -34,6 +37,10 @@ bool lastTapState = HIGH;
 
 bool externalTempoLatched = false;
 unsigned long lastExternalUpdate = 0;
+float lastTempoPeriodMs = 0.0f;
+TempoSource currentTempoSource = TempoSource::Internal;
+unsigned long lastTempoPulseMillis = 0;
+TempoListener tempoListeners[tempoListenerSlots] = {nullptr};
 
 #if DICELOOP_TEMPO_HAVE_USB_MIDI
 constexpr uint8_t midiClocksPerQuarter = 24;
@@ -43,13 +50,32 @@ unsigned long lastMidiClockMicros = 0;
 uint8_t midiClockCount = 0;
 #endif
 
+void notifyTempoListeners(float periodMs, TempoSource source, bool forceFire) {
+  bool sourceChanged = (source != currentTempoSource);
+  bool periodChanged = std::fabs(periodMs - lastTempoPeriodMs) > 0.01f;
+
+  lastTempoPeriodMs = periodMs;
+  currentTempoSource = source;
+
+  if (forceFire || sourceChanged || periodChanged) {
+    for (TempoListener &slot : tempoListeners) {
+      if (slot) {
+        slot(periodMs, source);
+      }
+    }
+  }
+}
+
 void noteExternalTempo(float milliseconds) {
   if (milliseconds <= 0.0f) {
     return;
   }
   setStutterBasePeriodMs(milliseconds);
   externalTempoLatched = true;
-  lastExternalUpdate = millis();
+  unsigned long now = millis();
+  lastExternalUpdate = now;
+  lastTempoPulseMillis = now;
+  notifyTempoListeners(milliseconds, TempoSource::External, true);
 }
 
 void resetTapAverager() {
@@ -135,6 +161,12 @@ void setupTempoSync() {
   resetTapAverager();
   externalTempoLatched = false;
   lastExternalUpdate = 0;
+  lastTempoPeriodMs = 0.0f;
+  currentTempoSource = TempoSource::Internal;
+  lastTempoPulseMillis = 0;
+  for (TempoListener &slot : tempoListeners) {
+    slot = nullptr;
+  }
 #if DICELOOP_TEMPO_HAVE_USB_MIDI
   midiClockCount = 0;
   midiClockWindowStart = 0;
@@ -153,6 +185,7 @@ void applyPotTempoBase(float milliseconds) {
   if (milliseconds <= 0.0f) {
     setStutterBasePeriodMs(milliseconds);
     externalTempoLatched = false;
+    currentTempoSource = TempoSource::Internal;
     return;
   }
   unsigned long now = millis();
@@ -162,4 +195,64 @@ void applyPotTempoBase(float milliseconds) {
   }
   externalTempoLatched = false;
   setStutterBasePeriodMs(milliseconds);
+  lastTempoPulseMillis = now;
+  notifyTempoListeners(milliseconds, TempoSource::Internal, false);
 }
+
+void registerTempoListener(TempoListener listener) {
+  if (!listener) {
+    return;
+  }
+  for (TempoListener &slot : tempoListeners) {
+    if (slot == listener) {
+      return; // already registered
+    }
+  }
+  for (TempoListener &slot : tempoListeners) {
+    if (!slot) {
+      slot = listener;
+      return;
+    }
+  }
+}
+
+void unregisterTempoListener(TempoListener listener) {
+  if (!listener) {
+    return;
+  }
+  for (TempoListener &slot : tempoListeners) {
+    if (slot == listener) {
+      slot = nullptr;
+    }
+  }
+}
+
+float tempoSyncCurrentPeriodMs() { return lastTempoPeriodMs; }
+
+float tempoSyncCurrentBpm() {
+  if (lastTempoPeriodMs <= 0.0f) {
+    return 0.0f;
+  }
+  return 60000.0f / lastTempoPeriodMs;
+}
+
+TempoSource tempoSyncCurrentSource() { return currentTempoSource; }
+
+float tempoSyncPulseProgress() {
+  if (lastTempoPeriodMs <= 0.0f || lastTempoPulseMillis == 0) {
+    return 0.0f;
+  }
+  unsigned long now = millis();
+  unsigned long elapsed = now - lastTempoPulseMillis;
+  float period = lastTempoPeriodMs;
+  if (period <= 0.0f) {
+    return 0.0f;
+  }
+  float progress = std::fmod(static_cast<float>(elapsed), period) / period;
+  if (progress < 0.0f) {
+    progress = 0.0f;
+  }
+  return progress;
+}
+
+bool tempoSyncHasExternalClock() { return externalTempoLatched; }

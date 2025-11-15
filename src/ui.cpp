@@ -8,6 +8,7 @@
 #include "Arduino.h"
 #include "audio_pipeline.h"
 #include "chaos.h"
+#include "tempo_sync.h"
 #include <cmath>
 
 #ifndef DICELOOP_ENABLE_OLED
@@ -128,7 +129,7 @@ void drawSlimSignedMeter(int y, float value, float maxMagnitude) {
   oled.drawFastVLine(mid, y, height, SSD1306_WHITE);
 
   float normalised = constrain(value / maxMagnitude, -1.0f, 1.0f);
-  int fill = static_cast<int>(roundf(fabsf(normalised) * (innerWidth / 2.0f)));
+  int fill = static_cast<int>(roundf(std::fabs(normalised) * (innerWidth / 2.0f)));
   if (fill <= 0) {
     return;
   }
@@ -145,14 +146,38 @@ void drawSlimSignedMeter(int y, float value, float maxMagnitude) {
 void drawChaosMeterStack(const ChaosSnapshot &chaosMods) {
   const float values[] = {chaosMods.mixOffset,
                           chaosMods.feedbackOffset,
-                          chaosMods.bloomLimiterGain - 1.0f,
-                          chaosMods.secondaryFeedbackOffset};
-  const float magnitudes[] = {0.2f, 0.4f, 0.5f, 0.4f};
+                          chaosMods.fuzzGain - 1.0f,
+                          chaosMods.bloomDepthOffset};
+  const float magnitudes[] = {0.2f, 0.4f, 0.5f, 0.5f};
   const int laneCount = 4;
   const int baseY = 20;
   const int spacing = 3; // 3 px meter stacked with a 0 px gap
   for (int i = 0; i < laneCount; ++i) {
     drawSlimSignedMeter(baseY + i * spacing, values[i], magnitudes[i]);
+  }
+}
+
+void drawTempoPulse(float progress, bool external) {
+  const int size = 7;
+  const int padding = 2;
+  int x = DICELOOP_OLED_WIDTH - size - padding;
+  if (x < 0) {
+    x = 0;
+  }
+  const int y = 0;
+  oled.drawRect(x, y, size, size, SSD1306_WHITE);
+  progress = constrain(progress, 0.0f, 1.0f);
+  if (progress < 0.25f) {
+    oled.fillRect(x + 1, y + 1, size - 2, size - 2, SSD1306_WHITE);
+  } else {
+    int height = static_cast<int>(roundf((1.0f - progress) * (size - 2)));
+    if (height < 1) {
+      height = 1;
+    }
+    oled.fillRect(x + 1, y + 1, size - 2, height, SSD1306_WHITE);
+  }
+  if (external && x > 0) {
+    oled.drawFastVLine(x - 1, y, size, SSD1306_WHITE);
   }
 }
 } // namespace
@@ -220,30 +245,57 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
   oled.setTextColor(SSD1306_WHITE);
 
   bool tempoLocked = stutterTimingMode() == StutterTimingMode::TempoLocked;
+  TempoSource tempoSource = tempoSyncCurrentSource();
+  float tempoBpm = tempoSyncCurrentBpm();
+  bool haveTempo = tempoBpm > 0.0f;
+  float pulseProgress = tempoSyncPulseProgress();
 
   oled.setCursor(0, 0);
-  oled.print("Chaos ");
-  oled.print(level);
-  oled.print("  Mods ");
+  oled.print("Md:");
   oled.print(modulatorsEnabled ? "ON" : "OFF");
-  oled.print("  Stut ");
-  oled.print(tempoLocked ? "LOCK" : "PROB");
+  oled.print(' ');
+  oled.print("St:");
+  oled.print(tempoLocked ? "LK" : "PR");
+  oled.print(' ');
+  oled.print("Clk:");
+  if (haveTempo) {
+    oled.print(tempoSource == TempoSource::External ? 'E' : 'I');
+    int bpmInt = static_cast<int>(roundf(constrain(tempoBpm, 1.0f, 999.0f)));
+    if (bpmInt < 100) {
+      oled.print(' ');
+    }
+    if (bpmInt < 10) {
+      oled.print(' ');
+    }
+    oled.print(bpmInt);
+  } else {
+    oled.print("---");
+  }
+  drawTempoPulse(pulseProgress,
+                 tempoSource == TempoSource::External && tempoSyncHasExternalClock());
+  ChaosSnapshot meterMods = chaosMods;
+  if (!modulatorsEnabled) {
+    meterMods = ChaosSnapshot{};
+  }
+  drawChaosMeterStack(meterMods);
 
   oled.setCursor(0, 8);
+  oled.print("Chs ");
+  oled.print(level);
+  oled.print(" Mix ");
   int mixPercent = static_cast<int>(roundf(constrain(mix, 0.0f, 1.0f) * 100.0f));
-  oled.print("Mix ");
   oled.print(mixPercent);
   oled.print('%');
-  oled.print("  Den ");
+  oled.print(" Dn ");
   oled.print(static_cast<int>(constrain(density, 0.0f, 100.0f)));
   drawMeter(8, constrain(mix, 0.0f, 1.0f));
 
   oled.setCursor(0, 16);
   int feedbackPercent = static_cast<int>(roundf(constrain(feedback, 0.0f, 1.0f) * 100.0f));
-  oled.print("FB  ");
+  oled.print("FB ");
   oled.print(feedbackPercent);
   oled.print('%');
-  oled.print("  Noi ");
+  oled.print(" Noi ");
   oled.print(static_cast<int>(constrain(noise, 0.0f, 60.0f)));
   drawMeter(16, constrain(feedback, 0.0f, 1.0f));
 
