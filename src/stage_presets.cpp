@@ -61,20 +61,6 @@ constexpr int kActiveSlotAddress = kSlotCountAddress + sizeof(uint8_t);
 constexpr int kReservedAddress = kActiveSlotAddress + sizeof(uint8_t);
 constexpr int kMaskAddress = kReservedAddress + sizeof(uint8_t);
 
-constexpr uint8_t kDefaultMasks[kPresetSlotCount] = {
-    // Full chaos stack
-    0x0F,
-    // Classic crush + stutter hiccups
-    static_cast<uint8_t>(dirtStageBit(DirtStage::BitCrush) |
-                         dirtStageBit(DirtStage::Stutter)),
-    // Harmonic smear only
-    static_cast<uint8_t>(dirtStageBit(DirtStage::BitCrush) |
-                         dirtStageBit(DirtStage::WaveFold)),
-    // Fuzz wash with a hint of fold
-    static_cast<uint8_t>(dirtStageBit(DirtStage::WaveFold) |
-                         dirtStageBit(DirtStage::Fuzz)),
-};
-
 uint8_t presetMasks[kPresetSlotCount];
 uint8_t activePreset = 0;
 bool stagePresetInitialised = false;
@@ -139,9 +125,56 @@ uint8_t sanitiseMask(uint8_t mask) {
   return mask;
 }
 
+void listCuratedStacks() {
+  Serial.println("[presets] curated stacks");
+  size_t count = curatedDirtStackCount();
+  for (size_t i = 0; i < count; ++i) {
+    DirtStackInfo info;
+    if (!curatedDirtStackInfo(i, &info)) {
+      continue;
+    }
+    Serial.print("  ");
+    Serial.print(info.id);
+    Serial.print("  mask 0x");
+    Serial.print(info.mask, HEX);
+    Serial.print("  ");
+    if (info.label && info.label[0] != '\0') {
+      Serial.print(info.label);
+      Serial.print(" → ");
+    }
+    Serial.println(maskToDescription(sanitiseMask(info.mask)));
+  }
+}
+
+bool applyCuratedStack(const DirtStackInfo &info, bool announce) {
+  uint8_t mask = sanitiseMask(info.mask);
+  for (size_t i = 0; i < kPresetSlotCount; ++i) {
+    if (presetMasks[i] == mask) {
+      return loadStagePreset(static_cast<uint8_t>(i), announce);
+    }
+  }
+  setActiveDirtStages(mask);
+  if (announce) {
+    Serial.print("[presets] stack ");
+    Serial.print(info.id);
+    Serial.print(" → ");
+    Serial.println(maskToDescription(mask));
+    if (info.label && info.label[0] != '\0') {
+      Serial.print("           ");
+      Serial.println(info.label);
+    }
+  }
+  return true;
+}
+
 void copyDefaults() {
   for (size_t i = 0; i < kPresetSlotCount; ++i) {
-    presetMasks[i] = sanitiseMask(kDefaultMasks[i]);
+    DirtStackInfo info;
+    uint8_t mask = 0;
+    if (curatedDirtStackInfo(i, &info)) {
+      mask = info.mask;
+    }
+    presetMasks[i] = sanitiseMask(mask);
   }
   activePreset = 0;
 }
@@ -260,6 +293,10 @@ void showHelp() {
   Serial.println("  preset load <slot>");
   Serial.println("  preset save <slot> <stage ids...>");
   Serial.println("  preset mask <slot> <hex mask>");
+  Serial.println("  preset stacks");
+  Serial.println("  preset stack list");
+  Serial.println("  preset stack load <id>");
+  Serial.println("  preset stack save <slot> <id>");
 }
 
 void handlePresetCommand(char **tokens, size_t count) {
@@ -268,6 +305,56 @@ void handlePresetCommand(char **tokens, size_t count) {
   }
   if (equalsIgnoreCase(tokens[0], "list")) {
     listPresets();
+    return;
+  }
+  if (equalsIgnoreCase(tokens[0], "stacks")) {
+    listCuratedStacks();
+    return;
+  }
+  if (equalsIgnoreCase(tokens[0], "stack")) {
+    if (count < 2) {
+      Serial.println("[presets] usage: preset stack <list|load|save> ...");
+      return;
+    }
+    if (equalsIgnoreCase(tokens[1], "list")) {
+      listCuratedStacks();
+      return;
+    }
+    if (equalsIgnoreCase(tokens[1], "load")) {
+      if (count < 3) {
+        Serial.println("[presets] usage: preset stack load <id>");
+        return;
+      }
+      DirtStackInfo info;
+      if (!curatedDirtStackById(tokens[2], &info)) {
+        Serial.print("[presets] unknown stack id: ");
+        Serial.println(tokens[2]);
+        return;
+      }
+      applyCuratedStack(info, true);
+      return;
+    }
+    if (equalsIgnoreCase(tokens[1], "save")) {
+      if (count < 4) {
+        Serial.println("[presets] usage: preset stack save <slot> <id>");
+        return;
+      }
+      int slot = atoi(tokens[2]);
+      if (slot < 0 || slot >= static_cast<int>(kPresetSlotCount)) {
+        Serial.println("[presets] invalid slot");
+        return;
+      }
+      DirtStackInfo info;
+      if (!curatedDirtStackById(tokens[3], &info)) {
+        Serial.print("[presets] unknown stack id: ");
+        Serial.println(tokens[3]);
+        return;
+      }
+      storeStagePreset(static_cast<uint8_t>(slot), sanitiseMask(info.mask), true,
+                       true);
+      return;
+    }
+    Serial.println("[presets] unknown stack action – try 'preset stack list'");
     return;
   }
   if (equalsIgnoreCase(tokens[0], "load")) {
