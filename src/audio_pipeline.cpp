@@ -57,7 +57,10 @@
 #include "Arduino.h"
 #include "chaos.h"
 #include "controls.h"
+#include <cctype>
+#include <cstddef>
 #include <cmath>
+#include <cstring>
 
 // === Audio Objects ===
 AudioInputI2S          i2sIn;
@@ -112,6 +115,83 @@ float currentDensityNorm = 0.0f;
 float currentNoiseNorm = 0.0f;
 float bloomEnvelopeL = 0.0f;
 float bloomEnvelopeR = 0.0f;
+
+struct DirtStageContext {
+  float input;
+  float densityNorm;
+  float noiseNorm;
+  float fuzzScale;
+  float crushed = 0.0f;
+  bool crushedActive = false;
+  float folded = 0.0f;
+  bool foldedActive = false;
+  float stuttered = 0.0f;
+  bool stutteredActive = false;
+  float fuzzContribution = 0.0f;
+  bool fuzzActive = false;
+};
+
+void runBitCrush(DirtStageContext &ctx) {
+  ctx.crushed = applyBitCrush(ctx.input, ctx.noiseNorm);
+  ctx.crushedActive = true;
+}
+
+void runWaveFold(DirtStageContext &ctx) {
+  ctx.folded = applyWaveFold(ctx.input, ctx.noiseNorm);
+  ctx.foldedActive = true;
+}
+
+void runStutter(DirtStageContext &ctx) {
+  float source = ctx.crushedActive ? ctx.crushed : ctx.input;
+  ctx.stuttered = applyStutter(source, ctx.densityNorm);
+  ctx.stutteredActive = true;
+}
+
+void runFuzz(DirtStageContext &ctx) {
+  float fuzz = static_cast<float>(random(-32768, 32767)) / 32767.0f;
+  float fuzzAmount = (0.08f + 0.42f * ctx.noiseNorm) *
+                     (0.4f + 0.6f * ctx.densityNorm);
+  fuzzAmount *= ctx.fuzzScale;
+  ctx.fuzzContribution = fuzz * fuzzAmount;
+  ctx.fuzzActive = true;
+}
+
+struct RegisteredDirtStage {
+  DirtStage stage;
+  const char *id;
+  void (*apply)(DirtStageContext &);
+};
+
+const RegisteredDirtStage dirtStageRegistry[] = {
+    {DirtStage::BitCrush, "bit_crush", runBitCrush},
+    {DirtStage::WaveFold, "wave_fold", runWaveFold},
+    {DirtStage::Stutter, "stutter", runStutter},
+    {DirtStage::Fuzz, "fuzz", runFuzz},
+};
+
+static_assert(static_cast<size_t>(DirtStage::Count) ==
+                  (sizeof(dirtStageRegistry) / sizeof(dirtStageRegistry[0])),
+              "Dirt stage registry mismatch");
+
+constexpr uint8_t kAllDirtStagesMask =
+    (1u << static_cast<uint8_t>(DirtStage::Count)) - 1u;
+
+uint8_t activeDirtStageMask = kAllDirtStagesMask;
+
+bool stageIdEquals(const char *lhs, const char *rhs) {
+  if (lhs == nullptr || rhs == nullptr) {
+    return false;
+  }
+  while (*lhs && *rhs) {
+    if (tolower(static_cast<unsigned char>(*lhs)) !=
+        tolower(static_cast<unsigned char>(*rhs))) {
+      return false;
+    }
+    ++lhs;
+    ++rhs;
+  }
+  return *lhs == '\0' && *rhs == '\0';
+}
 
 constexpr float twoPi = 2.0f * PI;
 
@@ -178,7 +258,53 @@ float applyBloomLimiter(float sample, float amount, float &envelope) {
 }
 } // namespace
 
+size_t dirtStageCount() { return static_cast<size_t>(DirtStage::Count); }
+
+const char *dirtStageId(DirtStage stage) {
+  size_t index = static_cast<size_t>(stage);
+  if (index >= dirtStageCount()) {
+    return "";
+  }
+  return dirtStageRegistry[index].id;
+}
+
+void setActiveDirtStages(uint8_t stageMask) {
+  activeDirtStageMask = stageMask & kAllDirtStagesMask;
+}
+
+uint8_t getActiveDirtStages() { return activeDirtStageMask; }
+
+bool enableDirtStage(DirtStage stage, bool enabled) {
+  uint8_t index = static_cast<uint8_t>(stage);
+  if (index >= static_cast<uint8_t>(DirtStage::Count)) {
+    return false;
+  }
+  uint8_t bit = dirtStageBit(stage);
+  if (enabled) {
+    activeDirtStageMask |= bit;
+  } else {
+    activeDirtStageMask &= static_cast<uint8_t>(~bit);
+  }
+  return true;
+}
+
+bool enableDirtStageById(const char *id, bool enabled) {
+  if (id == nullptr) {
+    return false;
+  }
+  for (const auto &entry : dirtStageRegistry) {
+    if (stageIdEquals(entry.id, id)) {
+      return enableDirtStage(entry.stage, enabled);
+    }
+  }
+  return false;
+}
+
 float processDirt(float sample) {
+  if (activeDirtStageMask == 0) {
+    return sample;
+  }
+
   // Apply glitch only on a percentage of samples defined by `density`. The rest
   // sail through untouched so the delay never loses its sense of pulse.
   long glitchRoll = random(100L);
@@ -190,20 +316,31 @@ float processDirt(float sample) {
   float densityNorm = currentDensityNorm;
   float noiseNorm = currentNoiseNorm;
 
-  float crushed = applyBitCrush(sample, noiseNorm);
-  float folded = applyWaveFold(sample, noiseNorm);
-  float stuttered = applyStutter(crushed, densityNorm);
+  DirtStageContext ctx{sample, densityNorm, noiseNorm, blockFuzzScale};
+  for (const auto &entry : dirtStageRegistry) {
+    if ((activeDirtStageMask & dirtStageBit(entry.stage)) != 0) {
+      entry.apply(ctx);
+    }
+  }
 
-  // Density leans into the rhythmic stutter, noise controls harmonic brutality.
-  float toneBlend = (1.0f - noiseNorm) * crushed + noiseNorm * folded;
-  float rhythmBlend = (1.0f - densityNorm) * toneBlend + densityNorm * stuttered;
+  float toneBlend = sample;
+  if (ctx.crushedActive && ctx.foldedActive) {
+    toneBlend = (1.0f - noiseNorm) * ctx.crushed + noiseNorm * ctx.folded;
+  } else if (ctx.crushedActive) {
+    toneBlend = ctx.crushed;
+  } else if (ctx.foldedActive) {
+    toneBlend = ctx.folded;
+  }
 
-  // Sprinkle controlled fuzz so even static notes evolve. Noise knob sets how
-  // hairy the fuzz gets, density dictates how often new grains are minted.
-  float fuzz = static_cast<float>(random(-32768, 32767)) / 32767.0f;
-  float fuzzAmount = (0.08f + 0.42f * noiseNorm) * (0.4f + 0.6f * densityNorm);
-  fuzzAmount *= blockFuzzScale;
-  float result = rhythmBlend + fuzz * fuzzAmount;
+  float rhythmBlend = toneBlend;
+  if (ctx.stutteredActive) {
+    rhythmBlend = (1.0f - densityNorm) * toneBlend + densityNorm * ctx.stuttered;
+  }
+
+  float result = rhythmBlend;
+  if (ctx.fuzzActive) {
+    result += ctx.fuzzContribution;
+  }
 
   result *= nextTremoloGain(densityNorm);
   return constrain(result, -1.0f, 1.0f);
