@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="640" viewBox="0 0 980 640">
+  <style>
+    text { font-family: 'Fira Sans', 'DejaVu Sans', sans-serif; fill: #111; }
+    .label { font-size: 16px; font-weight: 600; }
+    .pin { font-size: 14px; }
+    .note { font-size: 13px; }
+    .title { font-size: 22px; font-weight: 700; }
+    .subtitle { font-size: 17px; font-weight: 600; }
+    .bus { stroke-width: 4; fill: none; stroke-linecap: round; }
+    .run { stroke-width: 3; fill: none; stroke-linecap: round; }
+    .pot body { }
+  </style>
+  <rect x="40" y="40" width="320" height="560" rx="16" ry="16" fill="#f1f5f9" stroke="#0f172a" stroke-width="3"/>
+  <text class="title" x="200" y="74" text-anchor="middle">Teensy 4.0 + Audio Shield</text>
+  <text class="subtitle" x="200" y="108" text-anchor="middle">DiceLoop Control Harness Map</text>
+  <g id="power-rails">
+    <text class="label" x="70" y="150">Power Rails</text>
+    <line class="bus" x1="70" y1="165" x2="330" y2="165" stroke="#f97316"/>
+    <text class="pin" x="340" y="170">3.3 V bus → pots, buttons, OLED</text>
+    <line class="bus" x1="70" y1="185" x2="330" y2="185" stroke="#111827"/>
+    <text class="pin" x="340" y="190">Ground bus → pots, buttons, LED bar, OLED</text>
+  </g>
+  <g id="analog">
+    <text class="label" x="70" y="230">Analog Pots (10 k linear)</text>
+    <rect x="60" y="240" width="80" height="40" fill="#e0f2fe" stroke="#2563eb" stroke-width="2"/>
+    <text class="pin" x="100" y="265" text-anchor="middle">A0</text>
+    <text class="pin" x="160" y="260">Delay Time</text>
+    <rect x="60" y="285" width="80" height="40" fill="#e0f2fe" stroke="#2563eb" stroke-width="2"/>
+    <text class="pin" x="100" y="310" text-anchor="middle">A1</text>
+    <text class="pin" x="160" y="305">Feedback</text>
+    <rect x="60" y="330" width="80" height="40" fill="#e0f2fe" stroke="#2563eb" stroke-width="2"/>
+    <text class="pin" x="100" y="355" text-anchor="middle">A3</text>
+    <text class="pin" x="160" y="350">Noise / Crush</text>
+    <rect x="60" y="375" width="80" height="40" fill="#e0f2fe" stroke="#2563eb" stroke-width="2"/>
+    <text class="pin" x="100" y="400" text-anchor="middle">A4</text>
+    <text class="pin" x="160" y="395">Density</text>
+    <rect x="60" y="420" width="80" height="40" fill="#e0f2fe" stroke="#2563eb" stroke-width="2"/>
+    <text class="pin" x="100" y="445" text-anchor="middle">A5</text>
+    <text class="pin" x="160" y="440">Wet / Dry Mix</text>
+    <text class="note" x="60" y="470">Each pot: wiper → pin, left lug → 3.3 V bus, right lug → ground bus.</text>
+  </g>
+  <g id="buttons">
+    <text class="label" x="70" y="510">Momentary Buttons (active low)</text>
+    <rect x="60" y="520" width="80" height="34" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+    <text class="pin" x="100" y="540" text-anchor="middle">D7</text>
+    <text class="pin" x="160" y="538">Reset Calm</text>
+    <rect x="60" y="560" width="80" height="34" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+    <text class="pin" x="100" y="580" text-anchor="middle">D8</text>
+    <text class="pin" x="160" y="578">Reseed Chaos</text>
+    <text class="note" x="60" y="602">Other leg of each button → ground bus (internal pull-ups enabled).</text>
+  </g>
+  <g id="ledbar">
+    <rect x="420" y="220" width="220" height="120" rx="14" ry="14" fill="#fff7ed" stroke="#fb923c" stroke-width="3"/>
+    <text class="subtitle" x="530" y="245" text-anchor="middle">LED Bar Shift Register</text>
+    <text class="pin" x="435" y="270">74HC595 SER → D2</text>
+    <text class="pin" x="435" y="295">74HC595 RCLK → D3</text>
+    <text class="pin" x="435" y="320">74HC595 SRCLK → D4</text>
+    <text class="pin" x="435" y="345">VCC → 3.3 V bus · OE tied low · MR tied high</text>
+  </g>
+  <g id="oled">
+    <rect x="420" y="360" width="220" height="120" rx="14" ry="14" fill="#ecfeff" stroke="#0ea5e9" stroke-width="3"/>
+    <text class="subtitle" x="530" y="385" text-anchor="middle">Optional OLED (SSD1306)</text>
+    <text class="pin" x="435" y="410">SDA → D18</text>
+    <text class="pin" x="435" y="435">SCL → D19</text>
+    <text class="pin" x="435" y="460">VCC → 3.3 V bus · GND → ground bus</text>
+    <text class="note" x="435" y="485">Share I²C lines with audio shield; confirm pull-ups are present.</text>
+  </g>
+  <g id="harness">
+    <rect x="680" y="80" width="260" height="520" rx="18" ry="18" fill="#f8fafc" stroke="#1f2937" stroke-width="3"/>
+    <text class="title" x="810" y="120" text-anchor="middle">Panel Harness</text>
+    <text class="subtitle" x="810" y="150" text-anchor="middle">Breakout Blocks</text>
+    <text class="label" x="700" y="190">J1 – Pot loom</text>
+    <text class="note" x="700" y="210">1: 3.3 V · 2: Delay (A0) · 3: Feedback (A1)</text>
+    <text class="note" x="700" y="230">4: Noise (A3) · 5: Density (A4) · 6: Mix (A5)</text>
+    <text class="note" x="700" y="250">7: Spare analog · 8: Ground (shielded)</text>
+    <text class="label" x="700" y="290">J2 – Buttons</text>
+    <text class="note" x="700" y="310">1: D7 reset · 2: D8 reseed · 3: Ground</text>
+    <text class="label" x="700" y="350">J3 – LED bar</text>
+    <text class="note" x="700" y="370">1: D2 SER · 2: D3 RCLK · 3: D4 SRCLK</text>
+    <text class="note" x="700" y="390">4: 3.3 V · 5: Ground</text>
+    <text class="label" x="700" y="430">J4 – I²C expansion</text>
+    <text class="note" x="700" y="450">1: D18 SDA · 2: D19 SCL · 3: 3.3 V · 4: Ground</text>
+    <text class="note" x="700" y="490">Route harness bundles away from audio lines. Keep button pair twisted to dodge EMI.</text>
+  </g>
+  <text class="note" x="360" y="610">Color code suggestion: orange = 3.3 V, black = GND, blue = digital control, purple = analog wipers.</text>
+</svg>
