@@ -185,6 +185,30 @@ static_assert(static_cast<size_t>(DirtStage::Count) ==
 constexpr uint8_t kAllDirtStagesMask =
     (1u << static_cast<uint8_t>(DirtStage::Count)) - 1u;
 
+struct RegisteredDirtStack {
+  const char *id;
+  const char *label;
+  uint8_t mask;
+};
+
+const RegisteredDirtStack curatedDirtStacks[] = {
+    {"full_send", "Full chaos stack", kAllDirtStagesMask},
+    {"crush_hiccups",
+     "Crush + stutter hiccups",
+     static_cast<uint8_t>(dirtStageBit(DirtStage::BitCrush) |
+                          dirtStageBit(DirtStage::Stutter))},
+    {"sine_smear",
+     "Crush + fold smear",
+     static_cast<uint8_t>(dirtStageBit(DirtStage::BitCrush) |
+                          dirtStageBit(DirtStage::WaveFold))},
+    {"fuzz_bloom",
+     "Fold + fuzz bloom",
+     static_cast<uint8_t>(dirtStageBit(DirtStage::WaveFold) |
+                          dirtStageBit(DirtStage::Fuzz))},
+    {"stutter_gate", "Tempo stutter focus",
+     dirtStageBit(DirtStage::Stutter)},
+};
+
 uint8_t activeDirtStageMask = kAllDirtStagesMask;
 
 bool stageIdEquals(const char *lhs, const char *rhs) {
@@ -414,6 +438,36 @@ bool dirtStageById(const char *id, DirtStage *stage) {
   for (const auto &entry : dirtStageRegistry) {
     if (stageIdEquals(entry.id, id)) {
       *stage = entry.stage;
+      return true;
+    }
+  }
+  return false;
+}
+
+size_t curatedDirtStackCount() {
+  return sizeof(curatedDirtStacks) / sizeof(curatedDirtStacks[0]);
+}
+
+bool curatedDirtStackInfo(size_t index, DirtStackInfo *info) {
+  if (!info || index >= curatedDirtStackCount()) {
+    return false;
+  }
+  const RegisteredDirtStack &entry = curatedDirtStacks[index];
+  info->id = entry.id;
+  info->label = entry.label;
+  info->mask = entry.mask & kAllDirtStagesMask;
+  return true;
+}
+
+bool curatedDirtStackById(const char *id, DirtStackInfo *info) {
+  if (!id || !info) {
+    return false;
+  }
+  for (const auto &entry : curatedDirtStacks) {
+    if (stageIdEquals(entry.id, id)) {
+      info->id = entry.id;
+      info->label = entry.label;
+      info->mask = entry.mask & kAllDirtStagesMask;
       return true;
     }
   }

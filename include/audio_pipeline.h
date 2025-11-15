@@ -67,6 +67,12 @@ constexpr uint8_t dirtStageBit(DirtStage stage) {
   return static_cast<uint8_t>(1u << static_cast<uint8_t>(stage));
 }
 
+struct DirtStackInfo {
+  const char *id;
+  const char *label;
+  uint8_t mask;
+};
+
 size_t dirtStageCount();
 const char *dirtStageId(DirtStage stage);
 void setActiveDirtStages(uint8_t stageMask);
@@ -74,6 +80,10 @@ uint8_t getActiveDirtStages();
 bool enableDirtStage(DirtStage stage, bool enabled);
 bool enableDirtStageById(const char *id, bool enabled);
 bool dirtStageById(const char *id, DirtStage *stage);
+
+size_t curatedDirtStackCount();
+bool curatedDirtStackInfo(size_t index, DirtStackInfo *info);
+bool curatedDirtStackById(const char *id, DirtStackInfo *info);
 
 void setupAudioPipeline();
 void processAudioQueues();
