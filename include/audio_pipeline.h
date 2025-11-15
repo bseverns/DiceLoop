@@ -42,6 +42,15 @@ extern float secondaryVoiceLevel;          // Crossfeed blend for the ghost voic
 extern float bloomAmount;                  // Limiter/feedback bloom depth (0..1)
 extern float bloomFeedbackBoost;           // Additional feedback injected by bloom
 
+enum class StutterTimingMode {
+  Probability,  // density acts as per-sample probability (legacy behaviour)
+  TempoLocked   // stutter window snaps to musical subdivisions of the tempo
+};
+
+void setStutterTimingMode(StutterTimingMode mode);
+StutterTimingMode stutterTimingMode();
+void setStutterBasePeriodMs(float milliseconds);
+
 inline void setFeedbackGain(unsigned int channel, float value) {
   audio_compat::setGain(feedbackMixer, channel, value);
 }

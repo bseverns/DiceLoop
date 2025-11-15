@@ -14,6 +14,10 @@
 #include "ui.h"
 #include "Arduino.h"
 
+#ifndef DICELOOP_CONTROL_SERIAL_DEBUG
+#define DICELOOP_CONTROL_SERIAL_DEBUG 0
+#endif
+
 const int potDelayPin = A0;
 const int potFeedbackPin = A1;
 const int potNoiseAmountPin = A3;
@@ -28,6 +32,10 @@ const int maxChaosLevel = 8;    // Upper bound for chaos ladder
 bool reseedButtonState = false; // Edge-detect latch for reseed button
 bool resetButtonState = false;  // Edge-detect latch for reset button
 bool chaosChordLatched = false; // Prevent multiple toggles during dual-button hold
+unsigned long chaosChordHoldStart = 0;
+bool chaosChordHoldArmed = false;
+
+constexpr unsigned long tempoLockHoldMillis = 1200UL; // long-press to toggle tempo lock
 
 // Globals exposed in controls.h so the audio pipeline can read them without
 // circular dependencies. Defaults are intentionally modest so the unit powers on
@@ -60,14 +68,29 @@ void updateControl() {
     delay(50);
     bool chordStillDown =
         digitalRead(reseedButtonPin) == LOW && digitalRead(resetButtonPin) == LOW;
-    if (chordStillDown && !chaosChordLatched) {
-      chaosChordLatched = true;
-      bool enabled = toggleChaosModulators();
-      Serial.print("[chaos] modulators ");
-      Serial.println(enabled ? "engaged" : "bypassed");
+    if (chordStillDown) {
+      if (!chaosChordLatched) {
+        chaosChordLatched = true;
+        chaosChordHoldStart = millis();
+        chaosChordHoldArmed = true;
+        bool enabled = toggleChaosModulators();
+        Serial.print("[chaos] modulators ");
+        Serial.println(enabled ? "engaged" : "bypassed");
+      } else if (chaosChordHoldArmed &&
+                 (millis() - chaosChordHoldStart) >= tempoLockHoldMillis) {
+        chaosChordHoldArmed = false;
+        StutterTimingMode mode = stutterTimingMode();
+        StutterTimingMode next =
+            (mode == StutterTimingMode::TempoLocked) ? StutterTimingMode::Probability
+                                                     : StutterTimingMode::TempoLocked;
+        setStutterTimingMode(next);
+        Serial.print("[chaos] stutter tempo lock ");
+        Serial.println(next == StutterTimingMode::TempoLocked ? "engaged" : "released");
+      }
     }
   } else {
     chaosChordLatched = false;
+    chaosChordHoldArmed = false;
 
     // Check reseed button to increase chaos level
     if (reseedPressed) {
@@ -160,6 +183,7 @@ void updateControl() {
 
   delay1.delay(0, primaryDelayMs);
   delay1.delay(1, secondaryDelayMs);
+  setStutterBasePeriodMs(primaryDelayMs);
   macroMixOverride = wetOverride;
   macroWetBias = wetBias;
   secondaryVoiceLevel = ghostBlend;
@@ -179,27 +203,24 @@ void updateControl() {
 
   bool modsEnabled = chaosModulatorsEnabled();
 
-#ifndef DICELOOP_CONTROL_SERIAL_DEBUG
-#define DICELOOP_CONTROL_SERIAL_DEBUG 0
+#if DICELOOP_CONTROL_SERIAL_DEBUG
+  // Output debug information over serial so you can watch values without a scope.
+  Serial.print("Delay: ");
+  Serial.print(potDelayValue);
+  Serial.print(" | Feedback: ");
+  Serial.print(feedbackAmount);
+  Serial.print(" | Noise: ");
+  Serial.print(noiseAmount);
+  Serial.print(" | Density: ");
+  Serial.print(density);
+  Serial.print(" | Mix: ");
+  Serial.print(mixAmount);
+  Serial.print(" | ChaosMods: ");
+  Serial.println(modsEnabled ? "on" : "off");
+  Serial.print("[stutter] mode: ");
+  Serial.println(stutterTimingMode() == StutterTimingMode::TempoLocked ?
+                     "tempo-locked" : "probability");
 #endif
-
-  if constexpr (DICELOOP_CONTROL_SERIAL_DEBUG) {
-    // Output debug information over serial so you can watch values without a
-    // scope. Flip DICELOOP_CONTROL_SERIAL_DEBUG to 1 (build flag or local
-    // override) when you want the firehose back.
-    Serial.print("Delay: ");
-    Serial.print(potDelayValue);
-    Serial.print(" | Feedback: ");
-    Serial.print(feedbackAmount);
-    Serial.print(" | Noise: ");
-    Serial.print(noiseAmount);
-    Serial.print(" | Density: ");
-    Serial.print(density);
-    Serial.print(" | Mix: ");
-    Serial.print(mixAmount);
-    Serial.print(" | ChaosMods: ");
-    Serial.println(modsEnabled ? "on" : "off");
-  }
 
   // Pull the most recent chaos offsets so the UI mirrors what the audio engine
   // is actually doing, not just what the knobs are set to.
