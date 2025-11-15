@@ -181,6 +181,10 @@ bit-crusher:
     steps through musical subdivisions (whole notes down to 32nds) referenced
     against the main delay time. The hold windows quantise to audio block
     multiples so the chops land exactly on the beat.
+- **Controlled fuzz** – Still polite until asked, but now promoted to a
+  first-class stage. When active it sprinkles random hairs that scale with
+  density and noise, then feeds the tremolo for a breathing, amp-on-the-edge
+  sustain.
 
 Those outputs are blended on-the-fly and then handed to a slow tremolo and a
 touch of controlled fuzz. The knobs stay expressive because each axis hits a

@@ -14,6 +14,10 @@
 #include "ui.h"
 #include "Arduino.h"
 
+#ifndef DICELOOP_CONTROL_SERIAL_DEBUG
+#define DICELOOP_CONTROL_SERIAL_DEBUG 0
+#endif
+
 const int potDelayPin = A0;
 const int potFeedbackPin = A1;
 const int potNoiseAmountPin = A3;
@@ -197,18 +201,26 @@ void updateControl() {
   density = map(analogRead(potDensityPin), 0, 1023, 0, 100);
   mixAmount = map(analogRead(potMixPin), 0, 1023, 0, 100) / 100.0;
 
-  // Output debug information over serial so you can watch values without a scope.
-  Serial.print("Delay: "); Serial.print(potDelayValue);
-  Serial.print(" | Feedback: "); Serial.print(feedbackAmount);
-  Serial.print(" | Noise: "); Serial.print(noiseAmount);
-  Serial.print(" | Density: "); Serial.print(density);
-  Serial.print(" | Mix: "); Serial.print(mixAmount);
-  Serial.print(" | ChaosMods: ");
   bool modsEnabled = chaosModulatorsEnabled();
+
+#if DICELOOP_CONTROL_SERIAL_DEBUG
+  // Output debug information over serial so you can watch values without a scope.
+  Serial.print("Delay: ");
+  Serial.print(potDelayValue);
+  Serial.print(" | Feedback: ");
+  Serial.print(feedbackAmount);
+  Serial.print(" | Noise: ");
+  Serial.print(noiseAmount);
+  Serial.print(" | Density: ");
+  Serial.print(density);
+  Serial.print(" | Mix: ");
+  Serial.print(mixAmount);
+  Serial.print(" | ChaosMods: ");
   Serial.println(modsEnabled ? "on" : "off");
   Serial.print("[stutter] mode: ");
   Serial.println(stutterTimingMode() == StutterTimingMode::TempoLocked ?
-                 "tempo-locked" : "probability");
+                     "tempo-locked" : "probability");
+#endif
 
   // Pull the most recent chaos offsets so the UI mirrors what the audio engine
   // is actually doing, not just what the knobs are set to.
