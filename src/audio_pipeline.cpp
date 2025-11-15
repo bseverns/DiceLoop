@@ -486,6 +486,10 @@ void processAudioQueues() {
   baseMix = constrain(baseMix + macroWetBias, 0.0f, 1.0f);
   blockMixAmount = constrain(baseMix + chaosSnapshot.mixOffset, 0.0f, 1.0f);
   blockFuzzScale = chaosSnapshot.fuzzGain;
+  const float blockBloomAmount =
+      constrain(bloomAmount + chaosSnapshot.bloomDepthOffset, 0.0f, 1.0f);
+  const float blockPanOffset =
+      constrain(chaosSnapshot.secondaryVoicePan, -1.0f, 1.0f);
 
   float baseFeedback = constrain(feedbackAmount + bloomFeedbackBoost, 0.0f, 0.99f);
   if (chaosModulatorsEnabled()) {
@@ -528,8 +532,10 @@ void processAudioQueues() {
 
       if (secondaryVoiceLevel > 0.0f) {
         float cross = 0.5f * secondaryVoiceLevel;
-        float ghostL = dL * (1.0f - cross) + dR * cross;
-        float ghostR = dR * (1.0f - cross) + dL * cross;
+        float crossFromR = constrain(cross * (1.0f - blockPanOffset), 0.0f, 1.0f);
+        float crossFromL = constrain(cross * (1.0f + blockPanOffset), 0.0f, 1.0f);
+        float ghostL = dL * (1.0f - crossFromR) + dR * crossFromR;
+        float ghostR = dR * (1.0f - crossFromL) + dL * crossFromL;
         dL = ghostL;
         dR = ghostR;
       }
@@ -537,9 +543,9 @@ void processAudioQueues() {
       float mixedL = (1.0f - blockMixAmount) * cL + blockMixAmount * dL;
       float mixedR = (1.0f - blockMixAmount) * cR + blockMixAmount * dR;
 
-      if (bloomAmount > 0.0f) {
-        mixedL = applyBloomLimiter(mixedL, bloomAmount, bloomEnvelopeL);
-        mixedR = applyBloomLimiter(mixedR, bloomAmount, bloomEnvelopeR);
+      if (blockBloomAmount > 0.0f) {
+        mixedL = applyBloomLimiter(mixedL, blockBloomAmount, bloomEnvelopeL);
+        mixedR = applyBloomLimiter(mixedR, blockBloomAmount, bloomEnvelopeR);
       }
 
       mixedL = constrain(mixedL, -1.0f, 1.0f);
@@ -570,8 +576,8 @@ void processAudioQueues() {
         float d = static_cast<float>(dirty[i]) / 32768.0f;
         d = processDirt(d);
         float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
-        if (bloomAmount > 0.0f) {
-          mixed = applyBloomLimiter(mixed, bloomAmount, bloomEnvelopeL);
+        if (blockBloomAmount > 0.0f) {
+          mixed = applyBloomLimiter(mixed, blockBloomAmount, bloomEnvelopeL);
         }
         mixed = constrain(mixed, -1.0f, 1.0f);
         outBlock[i] = static_cast<int16_t>(mixed * 32767.0f);
@@ -595,8 +601,8 @@ void processAudioQueues() {
         float d = static_cast<float>(dirty[i]) / 32768.0f;
         d = processDirt(d);
         float mixed = (1.0f - blockMixAmount) * c + blockMixAmount * d;
-        if (bloomAmount > 0.0f) {
-          mixed = applyBloomLimiter(mixed, bloomAmount, bloomEnvelopeR);
+        if (blockBloomAmount > 0.0f) {
+          mixed = applyBloomLimiter(mixed, blockBloomAmount, bloomEnvelopeR);
         }
         mixed = constrain(mixed, -1.0f, 1.0f);
         outBlock[i] = static_cast<int16_t>(mixed * 32767.0f);

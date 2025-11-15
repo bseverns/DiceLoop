@@ -9,6 +9,8 @@ struct ChaosSnapshot {
   float mixOffset;      // additive offset applied to the wet/dry crossfade
   float feedbackOffset; // additive offset applied to the feedback mixer gain
   float fuzzGain;       // multiplier applied to the fuzz amount inside processDirt
+  float bloomDepthOffset;   // additive offset applied to bloomAmount (0..1 range)
+  float secondaryVoicePan;  // -1..1 pan applied to the ghost voice crossfeed
 };
 
 void setupChaos(); // call once from setup() to initialise chaos utilities
