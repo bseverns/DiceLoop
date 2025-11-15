@@ -10,6 +10,7 @@
 #include <Arduino.h>
 #include "audio_pipeline.h"
 #include "controls.h"
+#include "tempo_sync.h"
 #include "ui.h"
 #include "chaos.h"
 #include "stage_presets.h"
@@ -21,12 +22,14 @@ void setup() {
   // own builds.
   setupUI();
   setupControls();
+  setupTempoSync();
   setupAudioPipeline();
   setupChaos();
   setupStagePresets();
 }
 
 void loop() {
+  updateTempoSync();
   // Poll controls to refresh globals (pot values, button presses, chaos state)
   // and then drain audio queues. The order keeps latency low: we always process
   // control changes before pushing a fresh audio block.
