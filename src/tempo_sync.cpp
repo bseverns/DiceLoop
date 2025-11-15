@@ -9,7 +9,10 @@
 #include "audio_pipeline.h"
 #include <Arduino.h>
 
-#if defined(USB_MIDI) || defined(USB_AUDIO) || defined(USB_MIDI_SERIAL)
+#if defined(USB_MIDI) || defined(USB_MIDI_SERIAL) ||                               \
+    defined(USB_MIDI_AUDIO_SERIAL) || defined(USB_AUDIO_MIDI_SERIAL) ||            \
+    defined(USB_MIDI4_SERIAL) || defined(USB_MIDI16_SERIAL) ||                     \
+    defined(USB_EVERYTHING)
 #include <usb_midi.h>
 #define DICELOOP_TEMPO_HAVE_USB_MIDI 1
 #else
