@@ -177,15 +177,29 @@ void updateControl() {
   density = map(analogRead(potDensityPin), 0, 1023, 0, 100);
   mixAmount = map(analogRead(potMixPin), 0, 1023, 0, 100) / 100.0;
 
-  // Output debug information over serial so you can watch values without a scope.
-  Serial.print("Delay: "); Serial.print(potDelayValue);
-  Serial.print(" | Feedback: "); Serial.print(feedbackAmount);
-  Serial.print(" | Noise: "); Serial.print(noiseAmount);
-  Serial.print(" | Density: "); Serial.print(density);
-  Serial.print(" | Mix: "); Serial.print(mixAmount);
-  Serial.print(" | ChaosMods: ");
   bool modsEnabled = chaosModulatorsEnabled();
-  Serial.println(modsEnabled ? "on" : "off");
+
+#ifndef DICELOOP_CONTROL_SERIAL_DEBUG
+#define DICELOOP_CONTROL_SERIAL_DEBUG 0
+#endif
+
+  if constexpr (DICELOOP_CONTROL_SERIAL_DEBUG) {
+    // Output debug information over serial so you can watch values without a
+    // scope. Flip DICELOOP_CONTROL_SERIAL_DEBUG to 1 (build flag or local
+    // override) when you want the firehose back.
+    Serial.print("Delay: ");
+    Serial.print(potDelayValue);
+    Serial.print(" | Feedback: ");
+    Serial.print(feedbackAmount);
+    Serial.print(" | Noise: ");
+    Serial.print(noiseAmount);
+    Serial.print(" | Density: ");
+    Serial.print(density);
+    Serial.print(" | Mix: ");
+    Serial.print(mixAmount);
+    Serial.print(" | ChaosMods: ");
+    Serial.println(modsEnabled ? "on" : "off");
+  }
 
   // Pull the most recent chaos offsets so the UI mirrors what the audio engine
   // is actually doing, not just what the knobs are set to.
