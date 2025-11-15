@@ -14,8 +14,10 @@ namespace {
 bool modulatorsEnabled = false;
 float mixLfoPhase = 0.0f;
 float fuzzLfoPhase = 0.0f;
+float bloomLfoPhase = 0.0f;
+float panLfoPhase = 0.0f;
 float logisticState = 0.37f; // keep it away from 0/1 so the map keeps moving
-ChaosSnapshot lastSnapshot{0.0f, 0.0f, 1.0f};
+ChaosSnapshot lastSnapshot{0.0f, 0.0f, 1.0f, 0.0f, 0.0f};
 
 constexpr float twoPi = 2.0f * PI;
 
@@ -55,7 +57,7 @@ ChaosSnapshot updateChaosModulators(float densityNorm, float noiseNorm,
   // Default offsets keep the engine honest even when modulators are bypassed;
   // mix/feedback stay at whatever the performer dialled in while fuzz gain sits
   // at unity. The early return caches that baseline so the UI can render it too.
-  ChaosSnapshot snapshot{0.0f, 0.0f, 1.0f};
+  ChaosSnapshot snapshot{0.0f, 0.0f, 1.0f, 0.0f, 0.0f};
   if (!modulatorsEnabled || samplesPerBlock <= 0) {
     lastSnapshot = snapshot;
     return snapshot;
@@ -91,6 +93,28 @@ ChaosSnapshot updateChaosModulators(float densityNorm, float noiseNorm,
   const float fuzzRateHz = 0.25f + noiseNorm * 6.0f;
   fuzzLfoPhase = wrapPhase(fuzzLfoPhase + twoPi * fuzzRateHz * blockDuration);
   snapshot.fuzzGain = 1.0f + 0.2f * sinf(fuzzLfoPhase);
+
+  // Bloom sway: slow sine with a cubic wave-shape so it lingers at the extremes.
+  const float bloomRateHz = 0.035f + densityNorm * 0.25f;
+  bloomLfoPhase = wrapPhase(bloomLfoPhase + twoPi * bloomRateHz * blockDuration);
+  float bloomWave = sinf(bloomLfoPhase);
+  float bloomCurve = bloomWave * bloomWave * bloomWave; // asymmetry keeps it gooey
+  float bloomJitter = (static_cast<float>(random(-32768, 32767)) / 32767.0f) *
+                      0.03f * densityNorm;
+  float bloomScale = 0.15f + 0.35f * noiseNorm;
+  snapshot.bloomDepthOffset =
+      constrain(bloomScale * bloomCurve + bloomJitter, -0.45f, 0.45f);
+
+  // Secondary voice pan: swing the ghost voice across the stereo field using a
+  // faster LFO sprinkled with jitter so it never feels loop-perfect.
+  const float panRateHz = 0.12f + noiseNorm * 0.9f + densityNorm * 0.25f;
+  panLfoPhase = wrapPhase(panLfoPhase + twoPi * panRateHz * blockDuration);
+  float panWave = sinf(panLfoPhase);
+  float panJitter = (static_cast<float>(random(-32768, 32767)) / 32767.0f) *
+                    0.08f * noiseNorm;
+  float panScale = 0.35f + 0.4f * densityNorm;
+  snapshot.secondaryVoicePan =
+      constrain(panScale * panWave + panJitter, -0.95f, 0.95f);
 
   lastSnapshot = snapshot;
   return snapshot;

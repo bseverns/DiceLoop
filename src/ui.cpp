@@ -208,6 +208,9 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
     int mixDelta = static_cast<int>(roundf(chaosMods.mixOffset * 100.0f));
     int fbDelta = static_cast<int>(roundf(chaosMods.feedbackOffset * 100.0f));
     int fuzzDelta = static_cast<int>(roundf((chaosMods.fuzzGain - 1.0f) * 100.0f));
+    int bloomDelta =
+        static_cast<int>(roundf(chaosMods.bloomDepthOffset * 100.0f));
+    int panDelta = static_cast<int>(roundf(chaosMods.secondaryVoicePan * 100.0f));
     oled.print("dMix ");
     if (mixDelta >= 0) oled.print('+');
     oled.print(mixDelta);
@@ -219,6 +222,19 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
     oled.print(" Fz ");
     if (fuzzDelta >= 0) oled.print('+');
     oled.print(fuzzDelta);
+    oled.print('%');
+    oled.print(" Bl ");
+    if (bloomDelta >= 0) oled.print('+');
+    oled.print(bloomDelta);
+    oled.print('%');
+    oled.print(" Pn ");
+    if (panDelta >= 0) {
+      oled.print('R');
+    } else {
+      oled.print('L');
+      panDelta = -panDelta;
+    }
+    oled.print(panDelta);
     oled.print('%');
     drawSignedMeter(24, chaosMods.mixOffset, 0.2f);
   } else {
