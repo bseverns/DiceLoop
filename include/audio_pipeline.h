@@ -21,6 +21,7 @@ using boolean = bool;
 #endif
 
 #include <Audio.h>
+#include <cstddef>
 
 #include "audio_compat.h"
 
@@ -53,6 +54,25 @@ void setStutterBasePeriodMs(float milliseconds);
 inline void setFeedbackGain(unsigned int channel, float value) {
   audio_compat::setGain(feedbackMixer, channel, value);
 }
+
+enum class DirtStage : uint8_t {
+  BitCrush = 0,
+  WaveFold,
+  Stutter,
+  Fuzz,
+  Count
+};
+
+constexpr uint8_t dirtStageBit(DirtStage stage) {
+  return static_cast<uint8_t>(1u << static_cast<uint8_t>(stage));
+}
+
+size_t dirtStageCount();
+const char *dirtStageId(DirtStage stage);
+void setActiveDirtStages(uint8_t stageMask);
+uint8_t getActiveDirtStages();
+bool enableDirtStage(DirtStage stage, bool enabled);
+bool enableDirtStageById(const char *id, bool enabled);
 
 void setupAudioPipeline();
 void processAudioQueues();

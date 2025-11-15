@@ -165,8 +165,8 @@ compiles down to the same LED-only firmware as before.
 
 ### Dirt Engine Anatomy
 
-`processDirt()` now juggles three little DSP gremlins instead of a single
-bit-crusher:
+`processDirt()` now juggles a stack of DSP gremlins through a tiny stage
+registry so you can pick who clocks in for a given gig:
 
 - **Bit crush core** – The OG reduction to 2–8 bits still anchors the sound and
   tracks the `noiseAmount` pot.
@@ -186,12 +186,30 @@ bit-crusher:
   density and noise, then feeds the tremolo for a breathing, amp-on-the-edge
   sustain.
 
-Those outputs are blended on-the-fly and then handed to a slow tremolo and a
-touch of controlled fuzz. The knobs stay expressive because each axis hits a
+Those outputs are blended on-the-fly and then handed to the slow tremolo, with a
+controlled fuzz stage chiming in only if you let it. The knobs stay expressive
+because each axis hits a
 different part of the engine: `noiseAmount` sculpts harmonic teeth, `density`
 nudges the rhythmic edits, and the chaos ladder reseeds the whole mess so it
 never loops in place. Crack open `src/audio_pipeline.cpp` to study the math—it's
 annotated so you can rip out pieces or wire in your own machines.
+
+Want only bit crush with no fold? Or fuzz without the stutter hiccups? The
+registry exposes helper calls so your EEPROM profiles or serial scripts can
+flip stages on the fly:
+
+```cpp
+// Switch to a “bit crush only” profile
+setActiveDirtStages(dirtStageBit(DirtStage::BitCrush));
+
+// Or surgically toggle by name (case-insensitive)
+enableDirtStageById("stutter", false);
+enableDirtStageById("fuzz", true);
+```
+
+`dirtStageId()` and `dirtStageCount()` let you enumerate the roster if you want
+to present menus or save/load presets. No firmware edits required—just push a
+new mask down the pipe and the gremlins obey.
 
 ### Optional Chaos Modulators
 
