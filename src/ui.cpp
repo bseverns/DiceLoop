@@ -111,6 +111,50 @@ void drawSignedMeter(int y, float value, float maxMagnitude) {
     }
   }
 }
+
+// Slim bipolar meter strips so we can stack multiple chaos signals in the
+// bottom row without clobbering the knob readouts. Each strip is 3 px tall with
+// a centre tick marking zero.
+void drawSlimSignedMeter(int y, float value, float maxMagnitude) {
+  const int x = meterX();
+  const int width = meterWidth();
+  const int height = 3;
+  if (width <= 4 || maxMagnitude <= 0.0f) {
+    return;
+  }
+  const int innerWidth = width - 2;
+  const int mid = x + width / 2;
+  oled.drawRect(x, y, width, height, SSD1306_WHITE);
+  oled.drawFastVLine(mid, y, height, SSD1306_WHITE);
+
+  float normalised = constrain(value / maxMagnitude, -1.0f, 1.0f);
+  int fill = static_cast<int>(roundf(fabsf(normalised) * (innerWidth / 2.0f)));
+  if (fill <= 0) {
+    return;
+  }
+  if (fill > innerWidth / 2) {
+    fill = innerWidth / 2;
+  }
+  if (normalised >= 0.0f) {
+    oled.fillRect(mid + 1, y + 1, fill, height - 2, SSD1306_WHITE);
+  } else {
+    oled.fillRect(mid - fill, y + 1, fill, height - 2, SSD1306_WHITE);
+  }
+}
+
+void drawChaosMeterStack(const ChaosSnapshot &chaosMods) {
+  const float values[] = {chaosMods.mixOffset,
+                          chaosMods.feedbackOffset,
+                          chaosMods.bloomLimiterGain - 1.0f,
+                          chaosMods.secondaryFeedbackOffset};
+  const float magnitudes[] = {0.2f, 0.4f, 0.5f, 0.4f};
+  const int laneCount = 4;
+  const int baseY = 20;
+  const int spacing = 3; // 3 px meter stacked with a 0 px gap
+  for (int i = 0; i < laneCount; ++i) {
+    drawSlimSignedMeter(baseY + i * spacing, values[i], magnitudes[i]);
+  }
+}
 } // namespace
 #endif
 
@@ -227,6 +271,12 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
     if (bloomDelta >= 0) oled.print('+');
     oled.print(bloomDelta);
     oled.print('%');
+    int limiterDelta =
+        static_cast<int>(roundf((chaosMods.bloomLimiterGain - 1.0f) * 100.0f));
+    oled.print(" Lm ");
+    if (limiterDelta >= 0) oled.print('+');
+    oled.print(limiterDelta);
+    oled.print('%');
     oled.print(" Pn ");
     if (panDelta >= 0) {
       oled.print('R');
@@ -236,7 +286,13 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
     }
     oled.print(panDelta);
     oled.print('%');
-    drawSignedMeter(24, chaosMods.mixOffset, 0.2f);
+    int ghostDelta =
+        static_cast<int>(roundf(chaosMods.secondaryFeedbackOffset * 100.0f));
+    oled.print(" Gh ");
+    if (ghostDelta >= 0) oled.print('+');
+    oled.print(ghostDelta);
+    oled.print('%');
+    drawChaosMeterStack(chaosMods);
   } else {
     oled.print("Chord=chaos, hold=tempo");
   }
@@ -257,7 +313,10 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
 [[maybe_unused]] static void __cppcheck_ui_reference() {
   setupUI();
   updateLEDBar(0);
-  renderStatusUI(0, false, 0.5f, 0.25f, 0.0f, 0.0f, ChaosSnapshot{});
+  ChaosSnapshot snapshot{};
+  snapshot.fuzzGain = 1.0f;
+  snapshot.bloomLimiterGain = 1.0f;
+  renderStatusUI(0, false, 0.5f, 0.25f, 0.0f, 0.0f, snapshot);
 }
 [[maybe_unused]] static const auto __cppcheck_ui_anchor =
     (__cppcheck_ui_reference(), 0);

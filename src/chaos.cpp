@@ -15,9 +15,11 @@ bool modulatorsEnabled = false;
 float mixLfoPhase = 0.0f;
 float fuzzLfoPhase = 0.0f;
 float bloomLfoPhase = 0.0f;
+float bloomLimiterPhase = 0.0f;
 float panLfoPhase = 0.0f;
+float ghostFeedbackPhase = 0.0f;
 float logisticState = 0.37f; // keep it away from 0/1 so the map keeps moving
-ChaosSnapshot lastSnapshot{0.0f, 0.0f, 1.0f, 0.0f, 0.0f};
+ChaosSnapshot lastSnapshot{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f};
 
 constexpr float twoPi = 2.0f * PI;
 
@@ -57,7 +59,7 @@ ChaosSnapshot updateChaosModulators(float densityNorm, float noiseNorm,
   // Default offsets keep the engine honest even when modulators are bypassed;
   // mix/feedback stay at whatever the performer dialled in while fuzz gain sits
   // at unity. The early return caches that baseline so the UI can render it too.
-  ChaosSnapshot snapshot{0.0f, 0.0f, 1.0f, 0.0f, 0.0f};
+  ChaosSnapshot snapshot{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f};
   if (!modulatorsEnabled || samplesPerBlock <= 0) {
     lastSnapshot = snapshot;
     return snapshot;
@@ -105,6 +107,17 @@ ChaosSnapshot updateChaosModulators(float densityNorm, float noiseNorm,
   snapshot.bloomDepthOffset =
       constrain(bloomScale * bloomCurve + bloomJitter, -0.45f, 0.45f);
 
+  // Bloom limiter drive: slow breathing motion that leans harder as noise rises.
+  const float limiterRateHz = 0.02f + densityNorm * 0.12f + noiseNorm * 0.08f;
+  bloomLimiterPhase =
+      wrapPhase(bloomLimiterPhase + twoPi * limiterRateHz * blockDuration);
+  float limiterWave = sinf(bloomLimiterPhase);
+  float limiterWarp = limiterWave * limiterWave * limiterWave;
+  float limiterJitter =
+      (static_cast<float>(random(-32768, 32767)) / 32767.0f) * 0.04f * noiseNorm;
+  snapshot.bloomLimiterGain =
+      constrain(1.0f + 0.18f * limiterWarp + limiterJitter, 0.65f, 1.5f);
+
   // Secondary voice pan: swing the ghost voice across the stereo field using a
   // faster LFO sprinkled with jitter so it never feels loop-perfect.
   const float panRateHz = 0.12f + noiseNorm * 0.9f + densityNorm * 0.25f;
@@ -115,6 +128,18 @@ ChaosSnapshot updateChaosModulators(float densityNorm, float noiseNorm,
   float panScale = 0.35f + 0.4f * densityNorm;
   snapshot.secondaryVoicePan =
       constrain(panScale * panWave + panJitter, -0.95f, 0.95f);
+
+  // Secondary feedback wobble: swirl the ghost send so it blooms in unpredictable
+  // surges while still obeying the 0..1 mix fence.
+  const float ghostRateHz = 0.07f + densityNorm * 0.35f + noiseNorm * 0.18f;
+  ghostFeedbackPhase =
+      wrapPhase(ghostFeedbackPhase + twoPi * ghostRateHz * blockDuration);
+  float ghostWave = sinf(ghostFeedbackPhase);
+  float ghostCurve = ghostWave * (0.6f + 0.4f * noiseNorm);
+  float ghostJitter =
+      (static_cast<float>(random(-32768, 32767)) / 32767.0f) * 0.12f * densityNorm;
+  snapshot.secondaryFeedbackOffset =
+      constrain(0.22f * ghostCurve + ghostJitter, -0.35f, 0.35f);
 
   lastSnapshot = snapshot;
   return snapshot;

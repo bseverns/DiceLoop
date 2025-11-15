@@ -11,6 +11,8 @@ struct ChaosSnapshot {
   float fuzzGain;       // multiplier applied to the fuzz amount inside processDirt
   float bloomDepthOffset;   // additive offset applied to bloomAmount (0..1 range)
   float secondaryVoicePan;  // -1..1 pan applied to the ghost voice crossfeed
+  float bloomLimiterGain;   // multiplier applied to bloom limiter intensity
+  float secondaryFeedbackOffset; // additive offset applied to ghost feedback level
 };
 
 void setupChaos(); // call once from setup() to initialise chaos utilities
