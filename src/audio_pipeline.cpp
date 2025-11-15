@@ -96,6 +96,11 @@ float bloomAmount = 0.0f;
 float bloomFeedbackBoost = 0.0f;
 
 namespace {
+StutterTimingMode currentStutterMode = StutterTimingMode::Probability;
+float stutterBasePeriodSeconds = 0.5f; // default ≈120 BPM quarter note
+int tempoWindowSamples = AUDIO_BLOCK_SAMPLES;
+bool tempoWindowDirty = true;
+
 // State for the dynamic "dirt engine" cluster. All knobs steer these modulators
 // so the grit feels alive instead of binary on/off switches.
 float tremPhase = 0.0f;
@@ -114,6 +119,92 @@ float bloomEnvelopeL = 0.0f;
 float bloomEnvelopeR = 0.0f;
 
 constexpr float twoPi = 2.0f * PI;
+constexpr float tempoSubdivisionsBeats[] = {
+    4.0f,   // whole note
+    3.0f,   // dotted half
+    2.0f,   // half
+    1.5f,   // dotted quarter
+    1.0f,   // quarter
+    0.75f,  // dotted eighth
+    0.5f,   // eighth
+    0.375f, // dotted sixteenth
+    0.25f,  // sixteenth
+    0.1875f,// dotted thirty-second
+    0.125f  // thirty-second
+};
+
+int lastTempoSubdivisionIndex = -1;
+
+void refreshTempoLockedWindow(float densityNorm) {
+  if (currentStutterMode != StutterTimingMode::TempoLocked) {
+    return;
+  }
+
+  const int subdivisionCount = sizeof(tempoSubdivisionsBeats) / sizeof(float);
+  densityNorm = constrain(densityNorm, 0.0f, 1.0f);
+  int subdivisionIndex = static_cast<int>(floorf(densityNorm * subdivisionCount));
+  if (subdivisionIndex >= subdivisionCount) {
+    subdivisionIndex = subdivisionCount - 1;
+  }
+  if (subdivisionIndex < 0) {
+    subdivisionIndex = 0;
+  }
+
+  if (!tempoWindowDirty && subdivisionIndex == lastTempoSubdivisionIndex) {
+    return;
+  }
+
+  float basePeriodSeconds = stutterBasePeriodSeconds;
+  if (basePeriodSeconds <= 0.0f) {
+    basePeriodSeconds = static_cast<float>(AUDIO_BLOCK_SAMPLES) /
+                        AUDIO_SAMPLE_RATE_EXACT;
+  }
+
+  float windowSeconds = tempoSubdivisionsBeats[subdivisionIndex] * basePeriodSeconds;
+  const float blockDuration = static_cast<float>(AUDIO_BLOCK_SAMPLES) /
+                              AUDIO_SAMPLE_RATE_EXACT;
+  int blocks = static_cast<int>(roundf(windowSeconds / blockDuration));
+  if (blocks < 1) {
+    blocks = 1;
+  }
+  int newTempoWindowSamples = blocks * AUDIO_BLOCK_SAMPLES;
+  if (newTempoWindowSamples != tempoWindowSamples) {
+    tempoWindowSamples = newTempoWindowSamples;
+    holdCountdown = 0;
+  }
+
+  lastTempoSubdivisionIndex = subdivisionIndex;
+  tempoWindowDirty = false;
+}
+
+} // namespace
+
+void setStutterTimingMode(StutterTimingMode mode) {
+  if (mode == currentStutterMode) {
+    return;
+  }
+  currentStutterMode = mode;
+  holdCountdown = 0;
+  tempoWindowDirty = true;
+  lastTempoSubdivisionIndex = -1;
+}
+
+StutterTimingMode stutterTimingMode() { return currentStutterMode; }
+
+void setStutterBasePeriodMs(float milliseconds) {
+  if (milliseconds <= 0.0f) {
+    return; // keep last tempo so bypass regions don't nuke the groove
+  }
+  float newBase = milliseconds / 1000.0f;
+  if (fabsf(newBase - stutterBasePeriodSeconds) < 0.0001f) {
+    return;
+  }
+  stutterBasePeriodSeconds = newBase;
+  tempoWindowDirty = true;
+  lastTempoSubdivisionIndex = -1;
+}
+
+namespace {
 
 float applyBitCrush(float sample, float noiseNorm) {
   // Map 0..1 → 8..2 bits of resolution. Rounding keeps transitions smooth when
@@ -137,11 +228,23 @@ float applyWaveFold(float sample, float noiseNorm) {
 float applyStutter(float sample, float densityNorm) {
   // Sample-and-hold creates rhythmic chokes. Higher density → faster retrigs;
   // lower density → longer freezes that feel more like tape stoppages.
-  int window = 3 + static_cast<int>((1.0f - densityNorm) * 160.0f);
-  if (--holdCountdown <= 0) {
-    holdCountdown = window;
-    heldSample = sample;
+  if (currentStutterMode == StutterTimingMode::TempoLocked) {
+    int window = tempoWindowSamples;
+    if (window < 1) {
+      window = 1;
+    }
+    if (--holdCountdown <= 0) {
+      holdCountdown = window;
+      heldSample = sample;
+    }
+  } else {
+    int window = 3 + static_cast<int>((1.0f - densityNorm) * 160.0f);
+    if (--holdCountdown <= 0) {
+      holdCountdown = window;
+      heldSample = sample;
+    }
   }
+
   float freezeBlend = densityNorm * densityNorm; // gentle curve, 0..1.
   return heldSample * freezeBlend + sample * (1.0f - freezeBlend);
 }
@@ -224,6 +327,10 @@ void processAudioQueues() {
   // honest when pots jitter or the button ladder nudges past the endpoints.
   currentDensityNorm = constrain(density / 100.0f, 0.0f, 1.0f);
   currentNoiseNorm = constrain(noiseAmount / 60.0f, 0.0f, 1.0f);
+
+  if (currentStutterMode == StutterTimingMode::TempoLocked) {
+    refreshTempoLockedWindow(currentDensityNorm);
+  }
 
   // Sample chaos modulators once per audio block. Think of this as grabbing a
   // snapshot from a modular synth: the values stay frozen for the entire block

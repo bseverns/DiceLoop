@@ -28,6 +28,10 @@ const int maxChaosLevel = 8;    // Upper bound for chaos ladder
 bool reseedButtonState = false; // Edge-detect latch for reseed button
 bool resetButtonState = false;  // Edge-detect latch for reset button
 bool chaosChordLatched = false; // Prevent multiple toggles during dual-button hold
+unsigned long chaosChordHoldStart = 0;
+bool chaosChordHoldArmed = false;
+
+constexpr unsigned long tempoLockHoldMillis = 1200UL; // long-press to toggle tempo lock
 
 // Globals exposed in controls.h so the audio pipeline can read them without
 // circular dependencies. Defaults are intentionally modest so the unit powers on
@@ -60,14 +64,29 @@ void updateControl() {
     delay(50);
     bool chordStillDown =
         digitalRead(reseedButtonPin) == LOW && digitalRead(resetButtonPin) == LOW;
-    if (chordStillDown && !chaosChordLatched) {
-      chaosChordLatched = true;
-      bool enabled = toggleChaosModulators();
-      Serial.print("[chaos] modulators ");
-      Serial.println(enabled ? "engaged" : "bypassed");
+    if (chordStillDown) {
+      if (!chaosChordLatched) {
+        chaosChordLatched = true;
+        chaosChordHoldStart = millis();
+        chaosChordHoldArmed = true;
+        bool enabled = toggleChaosModulators();
+        Serial.print("[chaos] modulators ");
+        Serial.println(enabled ? "engaged" : "bypassed");
+      } else if (chaosChordHoldArmed &&
+                 (millis() - chaosChordHoldStart) >= tempoLockHoldMillis) {
+        chaosChordHoldArmed = false;
+        StutterTimingMode mode = stutterTimingMode();
+        StutterTimingMode next =
+            (mode == StutterTimingMode::TempoLocked) ? StutterTimingMode::Probability
+                                                     : StutterTimingMode::TempoLocked;
+        setStutterTimingMode(next);
+        Serial.print("[chaos] stutter tempo lock ");
+        Serial.println(next == StutterTimingMode::TempoLocked ? "engaged" : "released");
+      }
     }
   } else {
     chaosChordLatched = false;
+    chaosChordHoldArmed = false;
 
     // Check reseed button to increase chaos level
     if (reseedPressed) {
@@ -160,6 +179,7 @@ void updateControl() {
 
   delay1.delay(0, primaryDelayMs);
   delay1.delay(1, secondaryDelayMs);
+  setStutterBasePeriodMs(primaryDelayMs);
   macroMixOverride = wetOverride;
   macroWetBias = wetBias;
   secondaryVoiceLevel = ghostBlend;
@@ -186,6 +206,9 @@ void updateControl() {
   Serial.print(" | ChaosMods: ");
   bool modsEnabled = chaosModulatorsEnabled();
   Serial.println(modsEnabled ? "on" : "off");
+  Serial.print("[stutter] mode: ");
+  Serial.println(stutterTimingMode() == StutterTimingMode::TempoLocked ?
+                 "tempo-locked" : "probability");
 
   // Pull the most recent chaos offsets so the UI mirrors what the audio engine
   // is actually doing, not just what the knobs are set to.

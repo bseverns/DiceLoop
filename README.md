@@ -176,6 +176,11 @@ bit-crusher:
 - **Sample-and-hold stutter** – Density steers how quickly the engine freezes
   and relaunches audio grains. Slow sweeps feel like a dying tape deck; full
   tilt becomes digital chopper heaven.
+  - Long-press the dual-button chord (~1.2 s) to flip the stutter into
+    **tempo-lock mode**. Density stops acting like raw probability and instead
+    steps through musical subdivisions (whole notes down to 32nds) referenced
+    against the main delay time. The hold windows quantise to audio block
+    multiples so the chops land exactly on the beat.
 
 Those outputs are blended on-the-fly and then handed to a slow tremolo and a
 touch of controlled fuzz. The knobs stay expressive because each axis hits a
@@ -190,6 +195,12 @@ Feeling brave? Hold both buttons at once to flip a hidden switch that lets a
 pair of modulators ride shotgun with your knob moves. The reseed button + reset
 button chord calls into `toggleChaosModulators()` and prints the new state over
 serial so you always know whether the gremlins are active.
+
+- **Tempo lock** – Keep the same chord held for about a second after the
+  modulators flip and the firmware will toggle the stutter engine between the
+  legacy probabilistic mode and a tempo-locked subdivision mode. The tempo is
+  pulled from the current primary delay time, so dial your slapback to the song
+  and the glitch gates will grid themselves automatically.
 
 - **Mix sway** – A slow LFO nudges the wet/dry balance. Higher density means
   faster swings, so glitch hurricanes get a little extra motion.

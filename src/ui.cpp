@@ -6,6 +6,7 @@
 // animations.
 #include "ui.h"
 #include "Arduino.h"
+#include "audio_pipeline.h"
 #include "chaos.h"
 #include <cmath>
 
@@ -174,11 +175,15 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
   oled.setTextSize(1);
   oled.setTextColor(SSD1306_WHITE);
 
+  bool tempoLocked = stutterTimingMode() == StutterTimingMode::TempoLocked;
+
   oled.setCursor(0, 0);
   oled.print("Chaos ");
   oled.print(level);
   oled.print("  Mods ");
   oled.print(modulatorsEnabled ? "ON" : "OFF");
+  oled.print("  Stut ");
+  oled.print(tempoLocked ? "LOCK" : "PROB");
 
   oled.setCursor(0, 8);
   int mixPercent = static_cast<int>(roundf(constrain(mix, 0.0f, 1.0f) * 100.0f));
@@ -217,7 +222,7 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
     oled.print('%');
     drawSignedMeter(24, chaosMods.mixOffset, 0.2f);
   } else {
-    oled.print("Hold both buttons for chaos");
+    oled.print("Chord=chaos, hold=tempo");
   }
 
   oled.display();
