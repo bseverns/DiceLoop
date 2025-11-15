@@ -12,6 +12,7 @@
 #include "audio_pipeline.h"
 #include "chaos.h"
 #include "ui.h"
+#include "stage_presets.h"
 #include "Arduino.h"
 
 #ifndef DICELOOP_CONTROL_SERIAL_DEBUG
@@ -34,6 +35,13 @@ bool resetButtonState = false;  // Edge-detect latch for reset button
 bool chaosChordLatched = false; // Prevent multiple toggles during dual-button hold
 unsigned long chaosChordHoldStart = 0;
 bool chaosChordHoldArmed = false;
+
+unsigned long reseedPressStart = 0;
+unsigned long resetPressStart = 0;
+bool reseedHoldConsumed = false;
+bool resetHoldConsumed = false;
+
+constexpr unsigned long stagePresetHoldMillis = 600UL;
 
 constexpr unsigned long tempoLockHoldMillis = 1200UL; // long-press to toggle tempo lock
 
@@ -69,6 +77,17 @@ void updateControl() {
     bool chordStillDown =
         digitalRead(reseedButtonPin) == LOW && digitalRead(resetButtonPin) == LOW;
     if (chordStillDown) {
+      // Block preset holds while the chord is active.
+      reseedHoldConsumed = true;
+      resetHoldConsumed = true;
+      if (!reseedButtonState) {
+        reseedButtonState = true;
+        reseedPressStart = millis();
+      }
+      if (!resetButtonState) {
+        resetButtonState = true;
+        resetPressStart = millis();
+      }
       if (!chaosChordLatched) {
         chaosChordLatched = true;
         chaosChordHoldStart = millis();
@@ -95,32 +114,60 @@ void updateControl() {
     // Check reseed button to increase chaos level
     if (reseedPressed) {
       delay(50);
-      if (!reseedButtonState) {
+      if (!reseedButtonState && digitalRead(reseedButtonPin) == LOW) {
         reseedButtonState = true;
-        buttonPressCount++;
-        if (buttonPressCount > maxChaosLevel) buttonPressCount = maxChaosLevel;
-        noiseAmount = 20 + buttonPressCount * 5;
-        density = 5 + buttonPressCount * 10;
-        noiseAmount = constrain(noiseAmount, 20, 60);
-        density = constrain(density, 5, 100);
-        randomSeed(analogRead(randomSourcePin));
+        reseedHoldConsumed = false;
+        reseedPressStart = millis();
+      }
+      if (reseedButtonState) {
+        unsigned long held = millis() - reseedPressStart;
+        if (!reseedHoldConsumed && held >= stagePresetHoldMillis) {
+          reseedHoldConsumed = true;
+          selectNextStagePreset();
+        }
       }
     } else {
-      reseedButtonState = false;
+      if (reseedButtonState) {
+        reseedButtonState = false;
+        if (!reseedHoldConsumed) {
+          buttonPressCount++;
+          if (buttonPressCount > maxChaosLevel) buttonPressCount = maxChaosLevel;
+          noiseAmount = 20 + buttonPressCount * 5;
+          density = 5 + buttonPressCount * 10;
+          noiseAmount = constrain(noiseAmount, 20, 60);
+          density = constrain(density, 5, 100);
+          randomSeed(analogRead(randomSourcePin));
+        }
+      }
+      reseedHoldConsumed = false;
     }
 
     // Check reset button to clear chaos
     if (resetPressed) {
       delay(50);
-      if (!resetButtonState) {
+      if (!resetButtonState && digitalRead(resetButtonPin) == LOW) {
         resetButtonState = true;
-        buttonPressCount = 0;
-        noiseAmount = 20;
-        density = 5;
-        randomSeed(analogRead(randomSourcePin));
+        resetHoldConsumed = false;
+        resetPressStart = millis();
+      }
+      if (resetButtonState) {
+        unsigned long held = millis() - resetPressStart;
+        if (!resetHoldConsumed && held >= stagePresetHoldMillis) {
+          resetHoldConsumed = true;
+          selectPreviousStagePreset();
+        }
       }
     } else {
-      resetButtonState = false;
+      if (resetButtonState) {
+        resetButtonState = false;
+        if (!resetHoldConsumed) {
+          buttonPressCount = 0;
+          noiseAmount = 20;
+          density = 5;
+          randomSeed(analogRead(randomSourcePin));
+        }
+      }
+      resetHoldConsumed = false;
     }
   }
 
