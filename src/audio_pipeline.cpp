@@ -131,6 +131,10 @@ struct DirtStageContext {
   bool fuzzActive = false;
 };
 
+float applyBitCrush(float sample, float noiseNorm);
+float applyWaveFold(float sample, float noiseNorm);
+float applyStutter(float sample, float densityNorm);
+
 void runBitCrush(DirtStageContext &ctx) {
   ctx.crushed = applyBitCrush(ctx.input, ctx.noiseNorm);
   ctx.crushedActive = true;
