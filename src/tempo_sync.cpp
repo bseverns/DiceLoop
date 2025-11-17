@@ -66,16 +66,19 @@ void notifyTempoListeners(float periodMs, TempoSource source, bool forceFire) {
   }
 }
 
-void noteExternalTempo(float milliseconds) {
+void noteExternalTempo(float milliseconds, TempoSource source) {
   if (milliseconds <= 0.0f) {
     return;
+  }
+  if (source == TempoSource::Internal) {
+    source = TempoSource::Tap;
   }
   setStutterBasePeriodMs(milliseconds);
   externalTempoLatched = true;
   unsigned long now = millis();
   lastExternalUpdate = now;
   lastTempoPulseMillis = now;
-  notifyTempoListeners(milliseconds, TempoSource::External, true);
+  notifyTempoListeners(milliseconds, source, true);
 }
 
 void resetTapAverager() {
@@ -106,7 +109,7 @@ void updateTapTempo() {
         }
         float averaged = static_cast<float>(sum) /
                           static_cast<float>(tapIntervalCount);
-        noteExternalTempo(averaged);
+        noteExternalTempo(averaged, TempoSource::Tap);
       }
     }
     lastTapMillis = now;
@@ -131,7 +134,7 @@ void handleMidiClockMessage() {
   if (midiClockCount >= midiClocksPerQuarter) {
     unsigned long elapsed = nowMicros - midiClockWindowStart;
     float quarterMs = static_cast<float>(elapsed) / 1000.0f;
-    noteExternalTempo(quarterMs);
+    noteExternalTempo(quarterMs, TempoSource::Midi);
     midiClockCount = 0;
     midiClockWindowStart = nowMicros;
   }

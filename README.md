@@ -191,22 +191,35 @@ The tempo glue also sprouted a tiny observer API so side projects can react to
 incoming pulses without spelunking the audio engine. Call
 `registerTempoListener()` with a lambda (or old-school function pointer) and
 you'll get the measured period in milliseconds plus a `TempoSource` flag telling
-you whether that beat came from the pot or the outside world:
+you whether that beat came from the pot, a tap footswitch, or USB MIDI clock:
 
 ```cpp
 registerTempoListener([](float periodMs, TempoSource source) {
   Serial.print("tempo @ ");
   Serial.print(60000.0f / periodMs);
   Serial.print(" bpm from ");
-  Serial.println(source == TempoSource::External ? "DAW" : "panel");
+  switch (source) {
+  case TempoSource::Tap:
+    Serial.println("tap footswitch");
+    break;
+  case TempoSource::Midi:
+    Serial.println("USB MIDI clock");
+    break;
+  case TempoSource::Internal:
+  default:
+    Serial.println("panel delay pot");
+    break;
+  }
 });
 ```
 
 Flip on `DICELOOP_ENABLE_OLED` and you'll spot the payoff immediately: the top
-row now calls out `Md`, `St`, and `Clk` status, while a tiny strobe in the
-corner pulses in time with whatever clock we're chasing. External MIDI taps add
-a vertical accent so you can tell at a glance when the DAW is the one steering
-the chops.
+row now calls out `Md`, `St`, and a `Clk` badge that spells out whether the
+firmware is following **INT**, **TAP**, or **MIDI** clock. The display also
+prints the measured BPM (padded so you can read it mid-set) and the little
+tempo pulse in the corner now carries a glyph plus stripes/diagonals to show
+which clock is in charge. External taps keep the side stripe so you know when
+the beat is locked to the room instead of the delay pot.
 
 ### Dirt Engine Anatomy
 

@@ -36,6 +36,34 @@ namespace {
 Adafruit_SSD1306 oled(DICELOOP_OLED_WIDTH, DICELOOP_OLED_HEIGHT, &Wire, -1);
 bool oledReady = false;
 
+const char *tempoSourceLabel(TempoSource source) {
+  switch (source) {
+  case TempoSource::Tap:
+    return "TAP";
+  case TempoSource::Midi:
+    return "MIDI";
+  case TempoSource::Internal:
+  default:
+    return "INT";
+  }
+}
+
+char tempoSourceGlyph(TempoSource source) {
+  switch (source) {
+  case TempoSource::Tap:
+    return 'T';
+  case TempoSource::Midi:
+    return 'M';
+  case TempoSource::Internal:
+  default:
+    return 'I';
+  }
+}
+
+bool tempoSourceIsExternal(TempoSource source) {
+  return source == TempoSource::Tap || source == TempoSource::Midi;
+}
+
 // Return the x coordinate where meters should start so text on the left has
 // breathing room. It's intentionally scrappy—good enough for 128 px screens,
 // still sane when someone bolts on a postage-stamp display.
@@ -157,7 +185,7 @@ void drawChaosMeterStack(const ChaosSnapshot &chaosMods) {
   }
 }
 
-void drawTempoPulse(float progress, bool external) {
+void drawTempoPulse(float progress, TempoSource source, bool externalLatched) {
   const int size = 7;
   const int padding = 2;
   int x = DICELOOP_OLED_WIDTH - size - padding;
@@ -176,8 +204,19 @@ void drawTempoPulse(float progress, bool external) {
     }
     oled.fillRect(x + 1, y + 1, size - 2, height, SSD1306_WHITE);
   }
-  if (external && x > 0) {
+  if (tempoSourceIsExternal(source) && externalLatched && x > 0) {
     oled.drawFastVLine(x - 1, y, size, SSD1306_WHITE);
+  }
+  char glyph = tempoSourceGlyph(source);
+  if (x >= 6) {
+    oled.setCursor(x - 6, y);
+    oled.print(glyph);
+  }
+  if (source == TempoSource::Tap) {
+    oled.drawLine(x + 1, y + size - 2, x + size - 2, y + 1, SSD1306_WHITE);
+  } else if (source == TempoSource::Midi) {
+    oled.drawFastVLine(x + 2, y + 1, size - 2, SSD1306_WHITE);
+    oled.drawFastVLine(x + size - 3, y + 1, size - 2, SSD1306_WHITE);
   }
 }
 } // namespace
@@ -258,8 +297,11 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
   oled.print(tempoLocked ? "LK" : "PR");
   oled.print(' ');
   oled.print("Clk:");
+  oled.print(tempoSourceLabel(tempoSource));
+  oled.print(' ');
   if (haveTempo) {
-    oled.print(tempoSource == TempoSource::External ? 'E' : 'I');
+    oled.print("BPM");
+    oled.print(' ');
     int bpmInt = static_cast<int>(roundf(constrain(tempoBpm, 1.0f, 999.0f)));
     if (bpmInt < 100) {
       oled.print(' ');
@@ -269,10 +311,9 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
     }
     oled.print(bpmInt);
   } else {
-    oled.print("---");
+    oled.print("BPM --");
   }
-  drawTempoPulse(pulseProgress,
-                 tempoSource == TempoSource::External && tempoSyncHasExternalClock());
+  drawTempoPulse(pulseProgress, tempoSource, tempoSyncHasExternalClock());
   ChaosSnapshot meterMods = chaosMods;
   if (!modulatorsEnabled) {
     meterMods = ChaosSnapshot{};

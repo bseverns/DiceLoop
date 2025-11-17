@@ -8,7 +8,8 @@
 
 enum class TempoSource {
   Internal,
-  External,
+  Tap,
+  Midi,
 };
 
 using TempoListener = void (*)(float periodMs, TempoSource source);
