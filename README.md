@@ -401,7 +401,8 @@ library and fix upstream.
 - `src/` – firmware sources: `main.cpp`, `audio_pipeline.cpp`, `controls.cpp`,
   `ui.cpp`, `chaos.cpp`
 - `include/` – headers shared across those files
-- `rough/` – early Arduino sketch kept for historical kicks
+- `docs/legacy/rough.ino` – retired Arduino sketch kept for archaeology only;
+  read it for context, but don't flash it thinking it's the live firmware
 
 ## Study Pointers & Further Reading
 
