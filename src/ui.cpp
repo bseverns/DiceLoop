@@ -9,7 +9,9 @@
 #include "audio_pipeline.h"
 #include "chaos.h"
 #include "tempo_sync.h"
+#include "stage_presets.h"
 #include <cmath>
+#include <cstring>
 
 #ifndef DICELOOP_ENABLE_OLED
 #define DICELOOP_ENABLE_OLED 0
@@ -226,6 +228,88 @@ const int ledDataPin = 2;
 const int ledLatchPin = 3;
 const int ledClockPin = 4;
 
+namespace {
+struct DirtStackSelectorState {
+  bool visible = false;
+  uint8_t slot = 0;
+  uint8_t mask = 0;
+  bool viaFootswitch = false;
+  unsigned long lastChangeMs = 0;
+};
+
+constexpr unsigned long selectorOverlayDurationMs = 2000;
+DirtStackSelectorState selectorState;
+
+byte maskToLedPattern(uint8_t mask) {
+  byte pattern = 0;
+  const size_t stageCount = dirtStageCount();
+  for (size_t i = 0; i < stageCount && i < 4; ++i) {
+    uint8_t bit = dirtStageBit(static_cast<DirtStage>(i));
+    if ((mask & bit) == 0) {
+      continue;
+    }
+    int led = static_cast<int>(i) * 2; // fan the four stages across eight LEDs
+    pattern |= static_cast<byte>(1u << led);
+    if (led + 1 < 8) {
+      pattern |= static_cast<byte>(1u << (led + 1));
+    }
+  }
+  if (pattern == 0) {
+    pattern = 0x81; // keep the bar alive even if a rogue mask sneaks in
+  }
+  return pattern;
+}
+
+void shiftLedPattern(byte pattern) {
+  digitalWrite(ledLatchPin, LOW);
+  shiftOut(ledDataPin, ledClockPin, MSBFIRST, pattern);
+  digitalWrite(ledLatchPin, HIGH);
+}
+
+bool selectorActive() {
+  return selectorState.visible &&
+         (millis() - selectorState.lastChangeMs) < selectorOverlayDurationMs;
+}
+
+void stashSelectorState(uint8_t slot, uint8_t mask, bool viaFootswitch) {
+  selectorState.visible = true;
+  selectorState.slot = slot;
+  selectorState.mask = mask;
+  selectorState.viaFootswitch = viaFootswitch;
+  selectorState.lastChangeMs = millis();
+}
+
+const char *maskToLabel(uint8_t mask) {
+  static char label[64];
+  label[0] = '\0';
+  size_t len = 0;
+  for (size_t i = 0; i < dirtStageCount(); ++i) {
+    uint8_t bit = dirtStageBit(static_cast<DirtStage>(i));
+    if ((mask & bit) == 0) {
+      continue;
+    }
+    const char *id = dirtStageId(static_cast<DirtStage>(i));
+    if (!id || id[0] == '\0') {
+      continue;
+    }
+    if (len > 0 && len < sizeof(label) - 1) {
+      label[len++] = '+';
+    }
+    size_t remaining = (len < sizeof(label)) ? sizeof(label) - len : 0;
+    if (remaining > 1) {
+      strncat(label + len, id, remaining - 1);
+      len = strlen(label);
+    }
+  }
+  if (len == 0) {
+    strncpy(label, "(mute)", sizeof(label) - 1);
+    label[sizeof(label) - 1] = '\0';
+  }
+  return label;
+}
+
+} // namespace
+
 void setupUI() {
   // Configure shift register pins for the LED bar
   pinMode(ledDataPin, OUTPUT);
@@ -259,9 +343,7 @@ void updateLEDBar(int level) {
   // Using MSBFIRST means bit 7 maps to the LED closest to the data pin. If your
   // hardware is flipped, adjust the shift direction.
   byte ledPattern = (level == 0) ? 0 : (0xFF >> (8 - level));
-  digitalWrite(ledLatchPin, LOW);
-  shiftOut(ledDataPin, ledClockPin, MSBFIRST, ledPattern);
-  digitalWrite(ledLatchPin, HIGH);
+  shiftLedPattern(ledPattern);
 }
 
 // Fan out the current control state to every UI surface we own. LED bar gets a
@@ -272,7 +354,11 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
   int level = chaosLevel;
   if (level < 0) level = 0;
   if (level > 8) level = 8;
-  updateLEDBar(modulatorsEnabled ? 8 : level);
+  if (selectorActive()) {
+    shiftLedPattern(maskToLedPattern(selectorState.mask));
+  } else {
+    updateLEDBar(modulatorsEnabled ? 8 : level);
+  }
 
 #if DICELOOP_ENABLE_OLED
   if (!oledReady) {
@@ -282,6 +368,26 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
   oled.clearDisplay();
   oled.setTextSize(1);
   oled.setTextColor(SSD1306_WHITE);
+
+  if (selectorActive()) {
+    uint8_t slots = stagePresetSlotCount();
+    oled.setCursor(0, 0);
+    oled.print("Stack ");
+    oled.print(selectorState.slot + 1);
+    oled.print('/');
+    oled.print(slots);
+    oled.print(selectorState.viaFootswitch ? " foot" : " btn");
+
+    oled.setCursor(0, 8);
+    oled.print("Mask 0x");
+    oled.print(selectorState.mask, HEX);
+
+    oled.setCursor(0, 16);
+    oled.print(maskToLabel(selectorState.mask));
+
+    oled.display();
+    return;
+  }
 
   bool tempoLocked = stutterTimingMode() == StutterTimingMode::TempoLocked;
   TempoSource tempoSource = tempoSyncCurrentSource();
@@ -398,6 +504,23 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
   (void)noise;
   (void)density;
 #endif
+}
+
+void cycleDirtStackPreset(int direction, bool viaFootswitch) {
+  bool applied = false;
+  if (direction > 0) {
+    applied = selectNextStagePreset();
+  } else if (direction < 0) {
+    applied = selectPreviousStagePreset();
+  }
+  if (!applied) {
+    return;
+  }
+  uint8_t slot = currentStagePresetIndex();
+  uint8_t mask = stagePresetMask(slot);
+  setActiveDirtStages(mask);
+  stashSelectorState(slot, mask, viaFootswitch);
+  shiftLedPattern(maskToLedPattern(mask));
 }
 
 #ifdef __CPPCHECK__
