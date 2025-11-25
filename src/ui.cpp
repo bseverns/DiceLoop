@@ -9,7 +9,9 @@
 #include "audio_pipeline.h"
 #include "chaos.h"
 #include "tempo_sync.h"
+#include <cstdio>
 #include <cmath>
+#include <cstring>
 
 #ifndef DICELOOP_ENABLE_OLED
 #define DICELOOP_ENABLE_OLED 0
@@ -35,6 +37,12 @@
 namespace {
 Adafruit_SSD1306 oled(DICELOOP_OLED_WIDTH, DICELOOP_OLED_HEIGHT, &Wire, -1);
 bool oledReady = false;
+
+// Cached tempo state from the tempo_sync observer so we can render badges
+// without polling every frame.
+float cachedTempoPeriodMs = 0.0f;
+TempoSource cachedTempoSource = TempoSource::Internal;
+bool tempoListenerRegistered = false;
 
 const char *tempoSourceLabel(TempoSource source) {
   switch (source) {
@@ -171,6 +179,42 @@ void drawSlimSignedMeter(int y, float value, float maxMagnitude) {
   }
 }
 
+void onTempoUpdate(float periodMs, TempoSource source) {
+  if (periodMs > 0.0f) {
+    cachedTempoPeriodMs = periodMs;
+  }
+  cachedTempoSource = source;
+}
+
+void ensureTempoListenerRegistered() {
+  if (tempoListenerRegistered) {
+    return;
+  }
+  registerTempoListener(onTempoUpdate);
+  cachedTempoPeriodMs = tempoSyncCurrentPeriodMs();
+  cachedTempoSource = tempoSyncCurrentSource();
+  tempoListenerRegistered = true;
+}
+
+float cachedTempoBpm() {
+  if (cachedTempoPeriodMs <= 0.0f) {
+    return 0.0f;
+  }
+  return 60000.0f / cachedTempoPeriodMs;
+}
+
+// Pulse indicator constants so the badge painter can respect the same geometry.
+constexpr int tempoPulseSize = 7;
+constexpr int tempoPulsePadding = 2;
+
+int tempoPulseLeftEdge() {
+  int x = DICELOOP_OLED_WIDTH - tempoPulseSize - tempoPulsePadding;
+  if (x < 0) {
+    x = 0;
+  }
+  return x;
+}
+
 void drawChaosMeterStack(const ChaosSnapshot &chaosMods) {
   const float values[] = {chaosMods.mixOffset,
                           chaosMods.feedbackOffset,
@@ -185,13 +229,10 @@ void drawChaosMeterStack(const ChaosSnapshot &chaosMods) {
   }
 }
 
-void drawTempoPulse(float progress, TempoSource source, bool externalLatched) {
-  const int size = 7;
-  const int padding = 2;
-  int x = DICELOOP_OLED_WIDTH - size - padding;
-  if (x < 0) {
-    x = 0;
-  }
+int drawTempoPulse(float progress, TempoSource source, bool externalLatched) {
+  const int size = tempoPulseSize;
+  const int padding = tempoPulsePadding;
+  int x = tempoPulseLeftEdge();
   const int y = 0;
   oled.drawRect(x, y, size, size, SSD1306_WHITE);
   progress = constrain(progress, 0.0f, 1.0f);
@@ -218,6 +259,40 @@ void drawTempoPulse(float progress, TempoSource source, bool externalLatched) {
     oled.drawFastVLine(x + 2, y + 1, size - 2, SSD1306_WHITE);
     oled.drawFastVLine(x + size - 3, y + 1, size - 2, SSD1306_WHITE);
   }
+  return x;
+}
+
+int drawTempoBadge(int rightEdge, const char *label) {
+  if (!label) {
+    return rightEdge;
+  }
+  const int padding = 1;
+  const int glyphWidth = 6; // default font width at size 1
+  const int glyphHeight = 8;
+  int textWidth = strlen(label) * glyphWidth;
+  int badgeWidth = textWidth + padding * 2;
+  int left = rightEdge - badgeWidth;
+  if (left < 0) {
+    return rightEdge; // no room, skip drawing
+  }
+  oled.drawRect(left, 0, badgeWidth, glyphHeight, SSD1306_WHITE);
+  oled.setCursor(left + padding, 0);
+  oled.print(label);
+  return left - 2; // leave a 2 px gap before the next badge
+}
+
+void drawTempoHud(float bpm, TempoSource source, bool haveTempo,
+                  bool externalLatched, float pulseProgress) {
+  int pulseLeft = drawTempoPulse(pulseProgress, source, externalLatched);
+  int badgeCursor = pulseLeft - 2;
+  char bpmLabel[8] = "--";
+  if (haveTempo) {
+    int bpmInt = static_cast<int>(
+        roundf(constrain(bpm, 1.0f, 999.0f)));
+    snprintf(bpmLabel, sizeof(bpmLabel), "%3d", bpmInt);
+  }
+  badgeCursor = drawTempoBadge(badgeCursor, tempoSourceLabel(source));
+  drawTempoBadge(badgeCursor, bpmLabel);
 }
 } // namespace
 #endif
@@ -283,11 +358,14 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
   oled.setTextSize(1);
   oled.setTextColor(SSD1306_WHITE);
 
+  ensureTempoListenerRegistered();
+
   bool tempoLocked = stutterTimingMode() == StutterTimingMode::TempoLocked;
-  TempoSource tempoSource = tempoSyncCurrentSource();
-  float tempoBpm = tempoSyncCurrentBpm();
+  TempoSource tempoSource = cachedTempoSource;
+  float tempoBpm = cachedTempoBpm();
   bool haveTempo = tempoBpm > 0.0f;
   float pulseProgress = tempoSyncPulseProgress();
+  bool externalClockLatched = tempoSyncHasExternalClock();
 
   oled.setCursor(0, 0);
   oled.print("Md:");
@@ -295,25 +373,8 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
   oled.print(' ');
   oled.print("St:");
   oled.print(tempoLocked ? "LK" : "PR");
-  oled.print(' ');
-  oled.print("Clk:");
-  oled.print(tempoSourceLabel(tempoSource));
-  oled.print(' ');
-  if (haveTempo) {
-    oled.print("BPM");
-    oled.print(' ');
-    int bpmInt = static_cast<int>(roundf(constrain(tempoBpm, 1.0f, 999.0f)));
-    if (bpmInt < 100) {
-      oled.print(' ');
-    }
-    if (bpmInt < 10) {
-      oled.print(' ');
-    }
-    oled.print(bpmInt);
-  } else {
-    oled.print("BPM --");
-  }
-  drawTempoPulse(pulseProgress, tempoSource, tempoSyncHasExternalClock());
+  drawTempoHud(tempoBpm, tempoSource, haveTempo, externalClockLatched,
+               pulseProgress);
   ChaosSnapshot meterMods = chaosMods;
   if (!modulatorsEnabled) {
     meterMods = ChaosSnapshot{};
