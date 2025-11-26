@@ -124,7 +124,7 @@ void updateControl() {
         unsigned long held = millis() - reseedPressStart;
         if (!reseedHoldConsumed && held >= stagePresetHoldMillis) {
           reseedHoldConsumed = true;
-          selectNextStagePreset();
+          cycleDirtStackPreset(1, false);
         }
       }
     } else {
@@ -155,7 +155,7 @@ void updateControl() {
         unsigned long held = millis() - resetPressStart;
         if (!resetHoldConsumed && held >= stagePresetHoldMillis) {
           resetHoldConsumed = true;
-          selectPreviousStagePreset();
+          cycleDirtStackPreset(-1, false);
         }
       }
     } else {
