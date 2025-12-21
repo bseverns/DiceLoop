@@ -568,20 +568,24 @@ void renderStatusUI(int chaosLevel, bool modulatorsEnabled, float mix, float fee
 }
 
 void cycleDirtStackPreset(int direction, bool viaFootswitch) {
+  auto renderActivePreset = [viaFootswitch]() {
+    uint8_t slot = currentStagePresetIndex();
+    uint8_t mask = stagePresetMask(slot);
+    stashSelectorState(slot, mask, viaFootswitch);
+    shiftLedPattern(maskToLedPattern(mask));
+  };
+
   bool applied = false;
   if (direction > 0) {
     applied = selectNextStagePreset();
   } else if (direction < 0) {
     applied = selectPreviousStagePreset();
+  } else {
+    applied = loadStagePreset(currentStagePresetIndex(), true);
   }
-  if (!applied) {
-    return;
+  if (applied) {
+    renderActivePreset();
   }
-  uint8_t slot = currentStagePresetIndex();
-  uint8_t mask = stagePresetMask(slot);
-  setActiveDirtStages(mask);
-  stashSelectorState(slot, mask, viaFootswitch);
-  shiftLedPattern(maskToLedPattern(mask));
 }
 
 #ifdef __CPPCHECK__
