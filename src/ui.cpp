@@ -404,6 +404,8 @@ void setupUI() {
     oled.println("DiceLoop booting");
     oled.println("mods idle, twist knobs");
     oled.display();
+    // Hook into tempo_sync so we can paint source/bpm badges without polling.
+    ensureTempoListenerRegistered();
   }
 #endif
 }

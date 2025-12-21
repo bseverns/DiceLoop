@@ -169,6 +169,13 @@ meters on the right turns the screen into a modulation diary: top strip is mix
 offset, then feedback shove, bloom limiter gain, and ghost-send feedback. Skip
 the macro and the code compiles down to the same LED-only firmware as before.
 
+There is also a tiny tempo HUD squatting on the top row. `ui.cpp` registers a
+`TempoListener` so it can cache the measured tempo period/source without
+polling, convert that to BPM, and slap two badges next to the pulse meter: one
+spells out **INT**, **TAP**, or **MIDI** depending on where the clock came from
+and the other prints the zero-padded BPM. External taps keep the side stripe so
+you know when the groove is latched to the room instead of the delay pot.
+
 ### External Tempo Sync (Tap + MIDI Clock)
 
 You asked for the chop grid to follow the outside world—now it does. The new
