@@ -116,6 +116,8 @@ the chosen ranges work on Teensy 4.0 (3.3 V reference, 10-bit ADC, etc.).
 | Mix pot          | `A5`       | `mixAmount`     | 0.00 – 1.00 dry/wet crossfade |
 | Reseed button    | `8`        | chaos ladder    | Adds +5 bits of nastiness per press until clamped |
 | Reset button     | `7`        | chaos ladder    | Slams everything back to polite defaults |
+| Reseed button (hold ≥600 ms) | `8` | dirt stack select | Steps forward through the four stage-preset slots; LED bar flashes the mask, OLED spells out the slot/mask combo |
+| Reset button (hold ≥600 ms)  | `7` | dirt stack select | Steps backward through the same slots; same overlay so you can sanity-check what just loaded |
 | Tap footswitch†  | `6`        | tempo sync      | Optional normally-open tap jack. Each stomp recalibrates the tempo grid. |
 
 † Wire the tap footswitch as normally-open to ground. The firmware leans on the
@@ -125,6 +127,23 @@ doesn't spray the tempo.
 The chaos ladder is intentionally dramatic: each reseed press ratchets both the
 bit crushing depth and the glitch density, while also reseeding the RNG from an
 analog pin so the statistical flavour changes in a way you can actually hear.
+
+**Stage presets (aka curated dirt stacks)**
+
+- Four slots live in the stage preset manager (see `include/stage_presets.h` and
+  `src/stage_presets.cpp`). Long-press the reseed button to hop to the next
+  slot or long-press reset to travel backwards. The selector calls the preset
+  helpers directly (`selectNextStagePreset()` / `selectPreviousStagePreset()` /
+  `loadStagePreset()`), so the audio pipeline stays the single source of truth
+  for which dirt stages are actually hot.
+- Each hop splashes an overlay: the LED bar paints the current stage mask and,
+  if an OLED is wired, the top line spells out `Stack <slot>/<count>` plus
+  whether a button or footswitch triggered it. Slot + mask text sticks around
+  for ~2 seconds so you can sanity-check patches mid-set.
+- Want hands-free navigation? Wire a spare jack to ground and call
+  `cycleDirtStackPreset(direction, /*viaFootswitch=*/true)` (or `loadStagePreset`
+  for explicit jumps) from your own footswitch handler; the overlay will tag the
+  jump as `foot` so you remember which stomps came from the floor.
 
 **Delay pot macro map**
 
