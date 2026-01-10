@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="880" viewBox="0 0 1200 880">
+<rect x="0" y="0" width="1200" height="880" fill="#FDF8F4"/>
+<text x="40" y="48" font-family="monospace" font-size="20" font-weight="bold" fill="#0B1A2B">DiceLoop hardware schematic (logical)</text>
+<text x="40" y="76" font-family="monospace" font-size="13" font-weight="normal" fill="#0B1A2B">Generated from repo wiring docs</text>
+<line x1="580" y1="260" x2="420" y2="115" stroke="#D1495B" stroke-width="2"/>
+<text x="480" y="177" font-family="monospace" font-size="12" fill="#6B1F2B">I2S + MCLK 23 + SCK 13 + SDA/SCL</text>
+<line x1="740" y1="340" x2="820" y2="275" stroke="#D1495B" stroke-width="2"/>
+<text x="780" y="299" font-family="monospace" font-size="12" fill="#6B1F2B">A0/A1/A3/A4/A5 + 3.3V + GND</text>
+<line x1="740" y1="400" x2="820" y2="445" stroke="#D1495B" stroke-width="2"/>
+<text x="780" y="414" font-family="monospace" font-size="12" fill="#6B1F2B">D7/D8 + GND</text>
+<line x1="740" y1="470" x2="820" y2="595" stroke="#D1495B" stroke-width="2"/>
+<text x="780" y="524" font-family="monospace" font-size="12" fill="#6B1F2B">D2/D3/D4 + 3.3V + GND</text>
+<line x1="740" y1="530" x2="820" y2="755" stroke="#D1495B" stroke-width="2"/>
+<text x="780" y="634" font-family="monospace" font-size="12" fill="#6B1F2B">SDA/SCL + D5/D6 + 3.3V + GND</text>
+<rect x="420" y="260" width="320" height="240" rx="12" ry="12" fill="#F4F6FB" stroke="#1E2A3A" stroke-width="2"/>
+<text x="436" y="284" font-family="monospace" font-size="15" font-weight="bold" fill="#0B1A2B">Teensy 4.0</text>
+<text x="436" y="310" font-family="monospace" font-size="13" fill="#172B4D">A0 A1 A3 A4 A5 (pots)</text>
+<text x="436" y="328" font-family="monospace" font-size="13" fill="#172B4D">D2 D3 D4 (74HC595)</text>
+<text x="436" y="346" font-family="monospace" font-size="13" fill="#172B4D">D7 D8 (chaos buttons)</text>
+<text x="436" y="364" font-family="monospace" font-size="13" fill="#172B4D">D9 (entropy clock out)</text>
+<text x="436" y="382" font-family="monospace" font-size="13" fill="#172B4D">D5 D6 (OLED RES/DC)</text>
+<text x="436" y="400" font-family="monospace" font-size="13" fill="#172B4D">SDA 18 / SCL 19 (I2C)</text>
+<text x="436" y="418" font-family="monospace" font-size="13" fill="#172B4D">3.3V, GND</text>
+<rect x="420" y="40" width="320" height="150" rx="12" ry="12" fill="#F4F6FB" stroke="#1E2A3A" stroke-width="2"/>
+<text x="436" y="64" font-family="monospace" font-size="15" font-weight="bold" fill="#0B1A2B">PJRC Audio Shield</text>
+<text x="436" y="90" font-family="monospace" font-size="13" fill="#172B4D">I2S header stack</text>
+<text x="436" y="108" font-family="monospace" font-size="13" fill="#172B4D">MCLK -&gt; pin 23</text>
+<text x="436" y="126" font-family="monospace" font-size="13" fill="#172B4D">SCK -&gt; pin 13</text>
+<text x="436" y="144" font-family="monospace" font-size="13" fill="#172B4D">SDA/SCL shared</text>
+<text x="436" y="162" font-family="monospace" font-size="13" fill="#172B4D">Line in/out + SD</text>
+<rect x="820" y="220" width="320" height="150" rx="12" ry="12" fill="#F4F6FB" stroke="#1E2A3A" stroke-width="2"/>
+<text x="836" y="244" font-family="monospace" font-size="15" font-weight="bold" fill="#0B1A2B">Control Pots (x5)</text>
+<text x="836" y="270" font-family="monospace" font-size="13" fill="#172B4D">Gain / Loop / Feedback</text>
+<text x="836" y="288" font-family="monospace" font-size="13" fill="#172B4D">Dice / Chaos (10k lin)</text>
+<text x="836" y="306" font-family="monospace" font-size="13" fill="#172B4D">3.3V -&gt; pot high</text>
+<text x="836" y="324" font-family="monospace" font-size="13" fill="#172B4D">GND -&gt; pot low</text>
+<text x="836" y="342" font-family="monospace" font-size="13" fill="#172B4D">Wipers -&gt; A0/A1/A3/A4/A5</text>
+<rect x="820" y="390" width="320" height="110" rx="12" ry="12" fill="#F4F6FB" stroke="#1E2A3A" stroke-width="2"/>
+<text x="836" y="414" font-family="monospace" font-size="15" font-weight="bold" fill="#0B1A2B">Chaos Buttons (x2)</text>
+<text x="836" y="440" font-family="monospace" font-size="13" fill="#172B4D">Momentary to GND</text>
+<text x="836" y="458" font-family="monospace" font-size="13" fill="#172B4D">D7, D8 (pull-ups)</text>
+<rect x="820" y="520" width="320" height="150" rx="12" ry="12" fill="#F4F6FB" stroke="#1E2A3A" stroke-width="2"/>
+<text x="836" y="544" font-family="monospace" font-size="15" font-weight="bold" fill="#0B1A2B">LED Bar + 74HC595</text>
+<text x="836" y="570" font-family="monospace" font-size="13" fill="#172B4D">SER D2 / RCLK D3</text>
+<text x="836" y="588" font-family="monospace" font-size="13" fill="#172B4D">SRCLK D4</text>
+<text x="836" y="606" font-family="monospace" font-size="13" fill="#172B4D">QA-QH -&gt; segments</text>
+<text x="836" y="624" font-family="monospace" font-size="13" fill="#172B4D">330R per segment</text>
+<rect x="820" y="690" width="320" height="130" rx="12" ry="12" fill="#F4F6FB" stroke="#1E2A3A" stroke-width="2"/>
+<text x="836" y="714" font-family="monospace" font-size="15" font-weight="bold" fill="#0B1A2B">SSD1306 OLED (optional)</text>
+<text x="836" y="740" font-family="monospace" font-size="13" fill="#172B4D">SDA 18 / SCL 19</text>
+<text x="836" y="758" font-family="monospace" font-size="13" fill="#172B4D">RES D5 / DC D6</text>
+<text x="836" y="776" font-family="monospace" font-size="13" fill="#172B4D">3.3V, GND</text>
+</svg>
