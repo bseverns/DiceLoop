@@ -383,6 +383,18 @@ pio run -t upload  # flash it to the board
 `platform.ini` already targets the Teensy 4.0, so the above is enough to get
 code onto the hardware.
 
+### Native Test Bench (No Hardware Required)
+
+Run the host-side regression suite against the Arduino/Audio stubs:
+
+```sh
+pio test -e native
+```
+
+The tests live in `tests/native/` and focus on tempo sync, chaos modulator
+guardrails, and dirt-stack presets so you can demo the firmware logic on a
+laptop before you grab a Teensy.
+
 ### Continuous Integration Safety Net
 
 > **Note:** All of the real analog-to-digital work happens inside the SGTL5000
