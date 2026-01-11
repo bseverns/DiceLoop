@@ -157,6 +157,7 @@ class SerialMock {
     int read() { return -1; }
     void print(const char *) {}
     void print(int) {}
+    void print(uint8_t, int = 10) {}
     void print(unsigned long, int = 10) {}
     void print(float, int = 2) {}
     void println(const char * = "") {}
