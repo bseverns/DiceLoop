@@ -24,6 +24,15 @@ constexpr int OUTPUT = 1;
 constexpr int INPUT_PULLUP = 2;
 constexpr int MSBFIRST = 1;
 constexpr int LSBFIRST = 0;
+constexpr int DEC = 10;
+constexpr int HEX = 16;
+
+constexpr int A0 = 14;
+constexpr int A1 = 15;
+constexpr int A2 = 16;
+constexpr int A3 = 17;
+constexpr int A4 = 18;
+constexpr int A5 = 19;
 
 namespace dice_loop_stub {
 
@@ -133,6 +142,13 @@ inline constexpr const T &max(const T &a, const T &b) {
 }
 
 inline void shiftOut(uint8_t, uint8_t, uint8_t, uint8_t) {}
+
+inline long map(long x, long in_min, long in_max, long out_min, long out_max) {
+    if (in_max == in_min) {
+        return out_min;
+    }
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
 class SerialMock {
   public:
