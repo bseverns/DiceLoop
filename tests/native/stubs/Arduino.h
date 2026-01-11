@@ -36,9 +36,9 @@ inline int pin_modes[64] = {INPUT};
 inline void reset_state() {
     millis_value = 0;
     micros_value = 0;
-    std::fill(std::begin(digital_pins), std::end(digital_pins), HIGH);
-    std::fill(std::begin(analog_pins), std::end(analog_pins), 0);
-    std::fill(std::begin(pin_modes), std::end(pin_modes), INPUT);
+    std::fill(digital_pins, digital_pins + 64, HIGH);
+    std::fill(analog_pins, analog_pins + 64, 0);
+    std::fill(pin_modes, pin_modes + 64, INPUT);
 }
 
 inline void set_millis(unsigned long value) { millis_value = value; }

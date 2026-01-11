@@ -23,6 +23,13 @@ class AudioStream {
     explicit AudioStream(unsigned char, audio_block_t **) {}
     virtual ~AudioStream() = default;
     virtual void update() {}
+
+    static audio_block_t *allocate() { return new audio_block_t(); }
+    static void release(audio_block_t *block) { delete block; }
+
+  protected:
+    audio_block_t *receiveReadOnly(unsigned int) { return nullptr; }
+    void transmit(audio_block_t *, unsigned int = 0) {}
 };
 
 class AudioInputI2S : public AudioStream {};
