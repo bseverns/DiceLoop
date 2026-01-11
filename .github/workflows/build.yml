@@ -36,3 +36,12 @@ jobs:
 
       - name: Build firmware
         run: pio run
+
+      - name: Run native tests + render samples
+        run: pio test -e native
+
+      - name: Upload rendered samples
+        uses: actions/upload-artifact@v4
+        with:
+          name: dice-loop-rendered-samples
+          path: docs/sample/outputs/*.wav

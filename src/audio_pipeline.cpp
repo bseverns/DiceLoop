@@ -312,6 +312,25 @@ void setStutterBasePeriodMs(float milliseconds) {
   lastTempoSubdivisionIndex = -1;
 }
 
+void setDirtControlSnapshot(float densityNorm, float noiseNorm, float fuzzScale) {
+  currentDensityNorm = constrain(densityNorm, 0.0f, 1.0f);
+  currentNoiseNorm = constrain(noiseNorm, 0.0f, 1.0f);
+  blockFuzzScale = fuzzScale;
+}
+
+void resetDirtStateForTest() {
+  tremPhase = 0.0f;
+  foldMemory = 0.0f;
+  heldSample = 0.0f;
+  holdCountdown = 0;
+  blockFuzzScale = 1.0f;
+  currentDensityNorm = 0.0f;
+  currentNoiseNorm = 0.0f;
+  tempoWindowSamples = AUDIO_BLOCK_SAMPLES;
+  tempoWindowDirty = true;
+  lastTempoSubdivisionIndex = -1;
+}
+
 namespace {
 
 float applyBitCrush(float sample, float noiseNorm) {
@@ -735,4 +754,3 @@ void setupAudioPipeline() {
 [[maybe_unused]] static const auto __cppcheck_audio_pipeline_anchor =
     (__cppcheck_audio_pipeline_reference(), 0);
 #endif
-

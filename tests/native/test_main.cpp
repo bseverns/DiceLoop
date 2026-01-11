@@ -10,6 +10,7 @@ void test_chaos_disabled_returns_baseline();
 void test_chaos_enabled_stays_in_expected_ranges();
 void test_stage_preset_defaults_and_store();
 void test_dirt_stage_registry_and_masks();
+void test_render_samples();
 
 int main(int, char **) {
     UNITY_BEGIN();
@@ -19,5 +20,6 @@ int main(int, char **) {
     RUN_TEST(test_chaos_enabled_stays_in_expected_ranges);
     RUN_TEST(test_stage_preset_defaults_and_store);
     RUN_TEST(test_dirt_stage_registry_and_masks);
+    RUN_TEST(test_render_samples);
     return UNITY_END();
 }

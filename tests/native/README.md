@@ -17,6 +17,8 @@ pio test -e native
 - Tempo sync tap logic and external clock latching.
 - Chaos modulator bounds (to keep offsets sane).
 - Dirt stack registry + preset defaults.
+- Offline sample renders: writes WAVs to `docs/sample/outputs/` using
+  `docs/sample/sample.wav` as input.
 
 The stubs live in `tests/native/stubs/` and are intentionally tiny—add the next
 Arduino/Audio helper there when you need it for a new test or demo.

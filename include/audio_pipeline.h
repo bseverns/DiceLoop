@@ -50,6 +50,9 @@ enum class StutterTimingMode {
 void setStutterTimingMode(StutterTimingMode mode);
 StutterTimingMode stutterTimingMode();
 void setStutterBasePeriodMs(float milliseconds);
+void setDirtControlSnapshot(float densityNorm, float noiseNorm,
+                            float fuzzScale = 1.0f);
+void resetDirtStateForTest();
 
 inline void setFeedbackGain(unsigned int channel, float value) {
   audio_compat::setGain(feedbackMixer, channel, value);
@@ -90,4 +93,3 @@ void processAudioQueues();
 float processDirt(float sample);
 
 #endif
-

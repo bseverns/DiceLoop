@@ -17,3 +17,5 @@ Icon?
 .pio/libdeps/
 build/
 
+# Native render outputs
+docs/sample/outputs/
