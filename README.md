@@ -402,8 +402,9 @@ laptop before you grab a Teensy.
 > the chip, routes the **line in** pair to the delay graph, and leaves the MCU's
 > bare-metal ADC powered down. That silicon (and the PJRC `input_adc.cpp`
 > module) targets the older Kinetis parts, so we ship an `extra_script`
-> (`scripts/disable_audio_adc.py`) that snips it out before PlatformIO wastes
-> cycles compiling code we never call. The Teensyduino toolchain bundles a
+> (`scripts/disable_audio_adc.py`) that uses PlatformIO build middleware to
+> skip compiling only that source file. The
+> Teensyduino toolchain bundles a
 > modern Audio library that already speaks IMXRT, so we lean on the copy PJRC
 > ships with Teensyduino instead of yanking an older, Kinetis-only archive from
 > the PlatformIO registry. Keeping the dependency list short means CI and local
@@ -419,17 +420,18 @@ laptop before you grab a Teensy.
 
 Running `pio check -e teensy40` pumps your code through **cppcheck** as well as
 several Arduino-specific linters. The report is loud because it scans every
-vendor dependency living under `.pio/libdeps/teensy40/Audio/`. Most of the
+vendor dependency pulled in from the Teensy framework/toolchain and
+`.pio/libdeps/teensy40/`. Most of the
 “missing return” and “member not initialised” diagnostics come from the upstream
 PJRC Audio library and are outside this repo’s control. They are already proven
 in hardware, so we treat them as known noise.
 
 What actually matters for DiceLoop lives in `src/`. At the moment cppcheck only
 complains about a handful of helper functions (`processAudioQueues()`,
-`setupAudioPipeline()`, `setupChaos()`, etc.) that sit idle because the
-experimental control surface isn’t wired up in `main.cpp` yet. If you wire those
-features back in, the warnings disappear. Until then, the functions remain in
-place as documentation and ready-made hooks for future builds.
+`setupAudioPipeline()`, `setupChaos()`, etc.) when it analyzes translation units
+in isolation and misses call paths that are wired in `src/main.cpp`. Those
+functions are active in the live firmware; the local `__CPPCHECK__` anchors exist
+to reduce this class of false positives, but not all analyzer modes honor them.
 
 **TL;DR:** when you run the check, skim the output but focus on paths inside
 `src/`. Vendor noise can be safely ignored unless you decide to fork the audio

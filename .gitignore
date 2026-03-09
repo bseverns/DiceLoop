@@ -10,6 +10,10 @@ Icon?
 # IDE directories
 .vscode/
 
+# Python cache artifacts
+__pycache__/
+*.pyc
+
 # PlatformIO build artifacts
 .pio/
 .pioenvs/

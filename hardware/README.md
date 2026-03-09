@@ -20,8 +20,8 @@ Most signals are annotated in `src/main.cpp`, but here's the cheat sheet so you 
 | --- | --- | --- |
 | Input Pots (Gain, Loop, Feedback, Dice, Chaos) | A0, A1, A3, A4, A5 | 10k linear pots; firmware expects 0–1023 raw. |
 | Chaos Buttons | D7, D8 | Active low with internal pull-ups enabled. |
-| Entropy Clock (aka "dice re-roll") | D9 | Firmware pulses this to reseed random modulation. |
-| LED Shift Register | D2 (SER), D3 (RCLK), D4 (SRCLK) | 74HC595 feeding the 10-seg LED bar. |
+| Entropy Seed Source | D9 | Configured as high-frequency PWM, then sampled with `analogRead()` for reseed entropy. |
+| LED Shift Register | D2 (SER), D3 (RCLK), D4 (SRCLK) | One 74HC595 drives 8 active LED segments; segments 9–10 are optional with extra hardware + firmware work. |
 | Optional OLED (SSD1306) | SDA (18), SCL (19) | I²C, 3.3 V. |
 | Audio Shield | Dedicated I²S pins | Keep the ribbon short to dodge clock jitter. |
 

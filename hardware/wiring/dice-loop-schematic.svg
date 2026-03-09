@@ -17,7 +17,7 @@
 <text x="436" y="310" font-family="monospace" font-size="13" fill="#172B4D">A0 A1 A3 A4 A5 (pots)</text>
 <text x="436" y="328" font-family="monospace" font-size="13" fill="#172B4D">D2 D3 D4 (74HC595)</text>
 <text x="436" y="346" font-family="monospace" font-size="13" fill="#172B4D">D7 D8 (chaos buttons)</text>
-<text x="436" y="364" font-family="monospace" font-size="13" fill="#172B4D">D9 (entropy clock out)</text>
+<text x="436" y="364" font-family="monospace" font-size="13" fill="#172B4D">D9 (entropy seed source)</text>
 <text x="436" y="382" font-family="monospace" font-size="13" fill="#172B4D">D5 D6 (OLED RES/DC)</text>
 <text x="436" y="400" font-family="monospace" font-size="13" fill="#172B4D">SDA 18 / SCL 19 (I2C)</text>
 <text x="436" y="418" font-family="monospace" font-size="13" fill="#172B4D">3.3V, GND</text>

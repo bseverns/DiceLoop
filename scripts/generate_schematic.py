@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SVG = ROOT / "hardware" / "wiring" / "dice-loop-schematic.svg"
 DEFAULT_MD = ROOT / "hardware" / "wiring" / "dice-loop-schematic.md"
 DEFAULT_KICAD = ROOT / "hardware" / "wiring" / "dice-loop-schematic.kicad_sch"
+KICAD_UUID_NAMESPACE = uuid.UUID("3e76f5ec-5f76-4f31-b8cb-a6d8ed5f9f49")
 
 
 @dataclass(frozen=True)
@@ -127,8 +128,8 @@ def kfmt(value: float) -> str:
     return f"{value:.2f}"
 
 
-def kicad_uuid() -> str:
-    return str(uuid.uuid4())
+def kicad_uuid(key: str) -> str:
+    return str(uuid.uuid5(KICAD_UUID_NAMESPACE, key))
 
 
 def kicad_pin_offsets(pins: List[str]) -> List[Tuple[str, float]]:
@@ -258,7 +259,7 @@ def build_blocks(include_oled: bool) -> List[Block]:
                 "A0 A1 A3 A4 A5 (pots)",
                 "D2 D3 D4 (74HC595)",
                 "D7 D8 (chaos buttons)",
-                "D9 (entropy clock out)",
+                "D9 (entropy seed source)",
                 "D5 D6 (OLED RES/DC)",
                 "SDA 18 / SCL 19 (I2C)",
                 "3.3V, GND",
@@ -558,7 +559,7 @@ def render_kicad_wires_and_labels(
                     "\t\t\t(width 0)",
                     "\t\t\t(type solid)",
                     "\t\t)",
-                    f'\t\t(uuid "{kicad_uuid()}")',
+                    f'\t\t(uuid "{kicad_uuid(f"wire:{instance.reference}:{pin_name}")}")',
                     "\t)",
                     f'\t(label "{pin_name}"',
                     f"\t\t(at {kfmt(label_x)} {kfmt(label_y)} 0)",
@@ -568,7 +569,7 @@ def render_kicad_wires_and_labels(
                     "\t\t\t)",
                     "\t\t\t(justify left bottom)",
                     "\t\t)",
-                    f'\t\t(uuid "{kicad_uuid()}")',
+                    f'\t\t(uuid "{kicad_uuid(f"label:{instance.reference}:{pin_name}")}")',
                     "\t)",
                 ]
             )
@@ -594,7 +595,7 @@ def render_kicad_instance(
         "\t\t(in_bom yes)",
         "\t\t(on_board yes)",
         "\t\t(dnp no)",
-        f'\t\t(uuid "{kicad_uuid()}")',
+        f'\t\t(uuid "{kicad_uuid(f"symbol:{instance.reference}")}")',
         f'\t\t(property "Reference" "{instance.reference}"',
         f"\t\t\t(at {kfmt(instance.x)} {kfmt(ref_y)} 0)",
         "\t\t\t(effects",
@@ -643,7 +644,7 @@ def render_kicad_instance(
         lines.extend(
             [
                 f'\t\t(pin "{idx}"',
-                f'\t\t\t(uuid "{kicad_uuid()}")',
+                f'\t\t\t(uuid "{kicad_uuid(f"symbol:{instance.reference}:pin:{idx}")}")',
                 "\t\t)",
             ]
         )
@@ -664,7 +665,7 @@ def render_kicad_instance(
 
 
 def render_kicad(include_oled: bool) -> str:
-    root_uuid = kicad_uuid()
+    root_uuid = kicad_uuid(f"root:oled={int(include_oled)}")
     project_name = "dice-loop-schematic"
     symbols = build_kicad_symbols(include_oled)
     instances = build_kicad_instances(include_oled)
@@ -712,7 +713,7 @@ def write_file(path: Path, content: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate a logical DiceLoop hardware schematic (SVG + Markdown)."
+        description="Generate a logical DiceLoop hardware schematic (SVG + Markdown + KiCad)."
     )
     parser.add_argument(
         "--output-svg",

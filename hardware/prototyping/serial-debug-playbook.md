@@ -3,24 +3,33 @@
 When DiceLoop misbehaves, the serial monitor is your front-line ally. Here's how to wield it without losing a night of sleep.
 
 ## Quick Commands
-- `h` — Help dump (lists available debug toggles).
-- `m` — Print current loop meters.
-- `c` — Force chaos reseed.
-- `d` — Dump ADC raw values for all five pots.
+- `help` — Print the preset command help.
+- `preset help` — Same help text, namespaced.
+- `preset list` — Show all preset slots, masks, and the active slot.
+- `preset load <slot>` — Load slot `0..3`.
+- `preset save <slot> <stage ids...>` — Save a stage combo into a slot.
+- `preset mask <slot> <hex>` — Save a raw mask value (example: `0x5`).
+- `preset stack list` — Show curated stack IDs.
+- `preset stack load <id>` — Load a curated stack by ID.
 
-Mirror any firmware changes to this table so the docs stay honest.
+There is no single-character command surface (`h`, `m`, `c`, `d`) in current firmware. Keep this table in lockstep with `pollStagePresetSerial()` in `src/stage_presets.cpp`.
 
 ## Workflow
 1. **Baseline log:** Right after boot, copy the serial output into this file with a timestamp. It becomes your known-good reference.
-2. **Toggle features:** Use the commands above to isolate problems. For example, if the LED bar flickers, send `m` repeatedly and watch for jitter in the data.
+2. **Exercise parser commands:** Run `preset list`, then load a slot and confirm the `[presets] loaded slot ...` response.
 3. **Record anomalies:** Paste weird logs below along with the fix you applied.
 
 ## Saved Logs
 ```
-2024-04-05 23:12Z / JG
-DiceLoop boot
-ADC: 512 498 501 490 505
-Chaos: idle
+2026-03-09 14:12Z / BS
+[chaos] subsystem armed – modulators idle
+[presets] loaded slot 0 → bit_crush+stutter+fold+fuzz
+preset list
+[presets] slots
+  0* mask 0xF  stages: bit_crush+stutter+fold+fuzz
+  1  mask 0x3  stages: bit_crush+stutter
+  2  mask 0x5  stages: bit_crush+fold
+  3  mask 0x9  stages: bit_crush+fuzz
 ```
 
 Add more logs in chronological order. Treat this like the margins of a lab notebook.

@@ -1,6 +1,6 @@
 # LED Bar + Shift Register Playbook
 
-We use a 74HC595 to slam 10 LEDs with just three pins. Here's how to keep the blink poetry tight.
+The current firmware drives 8 LEDs from one 74HC595 with just three pins. Segments 9-10 on a 10-segment bar are optional extensions. Here's how to keep the blink poetry tight.
 
 ## Wiring Snapshot
 - **SER (Pin 14)** → Teensy D2

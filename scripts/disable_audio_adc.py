@@ -1,25 +1,15 @@
-from pathlib import Path
 from SCons.Script import Import
 
 Import("env")
 
 
-def disable_audio_input_adc(target, source, env):
-    project_libdeps = Path(env.subst("$PROJECT_LIBDEPS_DIR"))
-    active_env = env.subst("$PIOENV")
-    audio_dir = project_libdeps / active_env / "Audio"
-    if not audio_dir.exists():
-        return
-
-    adc_impl = audio_dir / "input_adc.cpp"
-    if not adc_impl.exists():
-        return
-
-    backup = audio_dir / "input_adc.cpp.disabled"
-    try:
-        adc_impl.rename(backup)
-    except OSError:
-        pass
+def skip_input_adc(env, node):
+    # The Teensy 4.x line-in path uses the audio shield codec, not MCU ADC input.
+    # Skipping this source avoids building the Kinetis-centric ADC module.
+    path = node.srcnode().get_path().replace("\\", "/")
+    if path.endswith("/libraries/Audio/input_adc.cpp"):
+        return None
+    return node
 
 
-env.AddPreAction("buildprog", disable_audio_input_adc)
+env.AddBuildMiddleware(skip_input_adc, pattern="*/libraries/Audio/input_adc.cpp")
