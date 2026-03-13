@@ -9,6 +9,7 @@
 #include "audio_pipeline.h"
 #include "chaos.h"
 #include "tempo_sync.h"
+#include "pin_config.h"
 #include <cstdio>
 #include "stage_presets.h"
 #include <cmath>
@@ -298,10 +299,6 @@ void drawTempoHud(float bpm, TempoSource source, bool haveTempo,
 } // namespace
 #endif
 
-const int ledDataPin = 2;
-const int ledLatchPin = 3;
-const int ledClockPin = 4;
-
 namespace {
 struct DirtStackSelectorState {
   bool visible = false;
@@ -335,9 +332,9 @@ byte maskToLedPattern(uint8_t mask) {
 }
 
 void shiftLedPattern(byte pattern) {
-  digitalWrite(ledLatchPin, LOW);
-  shiftOut(ledDataPin, ledClockPin, MSBFIRST, pattern);
-  digitalWrite(ledLatchPin, HIGH);
+  digitalWrite(pin_config::ledShiftLatch, LOW);
+  shiftOut(pin_config::ledShiftData, pin_config::ledShiftClock, MSBFIRST, pattern);
+  digitalWrite(pin_config::ledShiftLatch, HIGH);
 }
 
 bool selectorActive() {
@@ -353,7 +350,7 @@ void stashSelectorState(uint8_t slot, uint8_t mask, bool viaFootswitch) {
   selectorState.lastChangeMs = millis();
 }
 
-const char *maskToLabel(uint8_t mask) {
+[[maybe_unused]] const char *maskToLabel(uint8_t mask) {
   static char label[64];
   label[0] = '\0';
   size_t len = 0;
@@ -386,9 +383,9 @@ const char *maskToLabel(uint8_t mask) {
 
 void setupUI() {
   // Configure shift register pins for the LED bar
-  pinMode(ledDataPin, OUTPUT);
-  pinMode(ledLatchPin, OUTPUT);
-  pinMode(ledClockPin, OUTPUT);
+  pinMode(pin_config::ledShiftData, OUTPUT);
+  pinMode(pin_config::ledShiftLatch, OUTPUT);
+  pinMode(pin_config::ledShiftClock, OUTPUT);
 
 #if DICELOOP_ENABLE_OLED
   Wire.begin();
@@ -602,4 +599,3 @@ void cycleDirtStackPreset(int direction, bool viaFootswitch) {
 [[maybe_unused]] static const auto __cppcheck_ui_anchor =
     (__cppcheck_ui_reference(), 0);
 #endif
-

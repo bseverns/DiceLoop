@@ -14,36 +14,21 @@
 #include "tempo_sync.h"
 #include "ui.h"
 #include "stage_presets.h"
+#include "pin_config.h"
 #include "Arduino.h"
 
 #ifndef DICELOOP_CONTROL_SERIAL_DEBUG
 #define DICELOOP_CONTROL_SERIAL_DEBUG 0
 #endif
 
-const int potDelayPin = A0;
-const int potFeedbackPin = A1;
-const int potNoiseAmountPin = A3;
-const int potDensityPin = A4;
-const int potMixPin = A5;
-const int reseedButtonPin = 8;
-const int resetButtonPin = 7;
-const int randomSourcePin = 9;  // PWM pin used as an entropy source when read
-
 int buttonPressCount = 0;       // Tracks current chaos ladder position (0..8)
 const int maxChaosLevel = 8;    // Upper bound for chaos ladder
-bool reseedButtonState = false; // Edge-detect latch for reseed button
-bool resetButtonState = false;  // Edge-detect latch for reset button
 bool chaosChordLatched = false; // Prevent multiple toggles during dual-button hold
 unsigned long chaosChordHoldStart = 0;
 bool chaosChordHoldArmed = false;
 
-unsigned long reseedPressStart = 0;
-unsigned long resetPressStart = 0;
-bool reseedHoldConsumed = false;
-bool resetHoldConsumed = false;
-
+constexpr unsigned long buttonDebounceMillis = 50UL;
 constexpr unsigned long stagePresetHoldMillis = 600UL;
-
 constexpr unsigned long tempoLockHoldMillis = 1200UL; // long-press to toggle tempo lock
 
 // Globals exposed in controls.h so the audio pipeline can read them without
@@ -52,124 +37,161 @@ constexpr unsigned long tempoLockHoldMillis = 1200UL; // long-press to toggle te
 int noiseAmount = 20;
 int density = 5;
 
+namespace {
+
+struct ButtonState {
+  int pin;
+  bool rawPressed = false;
+  bool pressed = false;
+  bool justPressed = false;
+  bool justReleased = false;
+  bool holdConsumed = false;
+  unsigned long rawChangedAt = 0;
+  unsigned long pressStart = 0;
+};
+
+ButtonState reseedButton{pin_config::reseedButton};
+ButtonState resetButton{pin_config::resetButton};
+
+bool pinIsPressed(int pin) { return digitalRead(pin) == LOW; }
+
+void initialiseButtonState(ButtonState &button, unsigned long now) {
+  button.rawPressed = pinIsPressed(button.pin);
+  button.pressed = button.rawPressed;
+  button.justPressed = false;
+  button.justReleased = false;
+  button.holdConsumed = false;
+  button.rawChangedAt = now;
+  button.pressStart = now;
+}
+
+void updateButtonState(ButtonState &button, unsigned long now) {
+  button.justPressed = false;
+  button.justReleased = false;
+
+  bool rawPressed = pinIsPressed(button.pin);
+  if (rawPressed != button.rawPressed) {
+    button.rawPressed = rawPressed;
+    button.rawChangedAt = now;
+  }
+
+  if (button.pressed == button.rawPressed) {
+    return;
+  }
+  if ((now - button.rawChangedAt) < buttonDebounceMillis) {
+    return;
+  }
+
+  button.pressed = button.rawPressed;
+  if (button.pressed) {
+    button.justPressed = true;
+    button.holdConsumed = false;
+    button.pressStart = now;
+  } else {
+    button.justReleased = true;
+  }
+}
+
+void applyReseedShortPress() {
+  buttonPressCount++;
+  if (buttonPressCount > maxChaosLevel) {
+    buttonPressCount = maxChaosLevel;
+  }
+  noiseAmount = 20 + buttonPressCount * 5;
+  density = 5 + buttonPressCount * 10;
+  noiseAmount = constrain(noiseAmount, 20, 60);
+  density = constrain(density, 5, 100);
+  randomSeed(analogRead(pin_config::entropySource));
+}
+
+void applyResetShortPress() {
+  buttonPressCount = 0;
+  noiseAmount = 20;
+  density = 5;
+  randomSeed(analogRead(pin_config::entropySource));
+}
+
+}  // namespace
+
 void setupControls() {
   // Configure buttons and random source pin. INPUT_PULLUP keeps the buttons
   // stable without external resistors (logic low means "pressed").
-  pinMode(reseedButtonPin, INPUT_PULLUP);
-  pinMode(resetButtonPin, INPUT_PULLUP);
-  pinMode(randomSourcePin, OUTPUT);
-  analogWriteFrequency(randomSourcePin, 25000);
+  pinMode(pin_config::reseedButton, INPUT_PULLUP);
+  pinMode(pin_config::resetButton, INPUT_PULLUP);
+  pinMode(pin_config::entropySource, OUTPUT);
+  analogWriteFrequency(pin_config::entropySource, 25000);
 
   // Seed RNG from the PWM pin. Because we never connect anything to it, its
   // analog readback carries thermal noise that provides a slightly chaotic seed.
-  randomSeed(analogRead(randomSourcePin));
+  randomSeed(analogRead(pin_config::entropySource));
+  buttonPressCount = 0;
+  noiseAmount = 20;
+  density = 5;
+  chaosChordLatched = false;
+  chaosChordHoldStart = 0;
+  chaosChordHoldArmed = false;
+
+  unsigned long now = millis();
+  initialiseButtonState(reseedButton, now);
+  initialiseButtonState(resetButton, now);
 }
 
 void updateControl() {
   // === Button handling ===
-  // Buttons are debounced with a primitive delay to keep the code legible for
-  // beginners. See README for links if you want to replace it with a real FSM.
-  bool reseedPressed = digitalRead(reseedButtonPin) == LOW;
-  bool resetPressed = digitalRead(resetButtonPin) == LOW;
+  // The buttons run through a tiny non-blocking state machine so short presses,
+  // long holds, and the dual-button chord can coexist without stalling the main
+  // loop.
+  unsigned long now = millis();
+  updateButtonState(reseedButton, now);
+  updateButtonState(resetButton, now);
+  bool reseedPressed = reseedButton.pressed;
+  bool resetPressed = resetButton.pressed;
 
   // Dual-button chord toggles the optional chaos modulators.
   if (reseedPressed && resetPressed) {
-    delay(50);
-    bool chordStillDown =
-        digitalRead(reseedButtonPin) == LOW && digitalRead(resetButtonPin) == LOW;
-    if (chordStillDown) {
-      // Block preset holds while the chord is active.
-      reseedHoldConsumed = true;
-      resetHoldConsumed = true;
-      if (!reseedButtonState) {
-        reseedButtonState = true;
-        reseedPressStart = millis();
-      }
-      if (!resetButtonState) {
-        resetButtonState = true;
-        resetPressStart = millis();
-      }
-      if (!chaosChordLatched) {
-        chaosChordLatched = true;
-        chaosChordHoldStart = millis();
-        chaosChordHoldArmed = true;
-        bool enabled = toggleChaosModulators();
-        Serial.print("[chaos] modulators ");
-        Serial.println(enabled ? "engaged" : "bypassed");
-      } else if (chaosChordHoldArmed &&
-                 (millis() - chaosChordHoldStart) >= tempoLockHoldMillis) {
-        chaosChordHoldArmed = false;
-        StutterTimingMode mode = stutterTimingMode();
-        StutterTimingMode next =
-            (mode == StutterTimingMode::TempoLocked) ? StutterTimingMode::Probability
-                                                     : StutterTimingMode::TempoLocked;
-        setStutterTimingMode(next);
-        Serial.print("[chaos] stutter tempo lock ");
-        Serial.println(next == StutterTimingMode::TempoLocked ? "engaged" : "released");
-      }
+    // Block preset holds and short presses while the chord is active.
+    reseedButton.holdConsumed = true;
+    resetButton.holdConsumed = true;
+    if (!chaosChordLatched) {
+      chaosChordLatched = true;
+      chaosChordHoldStart = now;
+      chaosChordHoldArmed = true;
+      bool enabled = toggleChaosModulators();
+      Serial.print("[chaos] modulators ");
+      Serial.println(enabled ? "engaged" : "bypassed");
+    } else if (chaosChordHoldArmed &&
+               (now - chaosChordHoldStart) >= tempoLockHoldMillis) {
+      chaosChordHoldArmed = false;
+      StutterTimingMode mode = stutterTimingMode();
+      StutterTimingMode next =
+          (mode == StutterTimingMode::TempoLocked) ? StutterTimingMode::Probability
+                                                   : StutterTimingMode::TempoLocked;
+      setStutterTimingMode(next);
+      Serial.print("[chaos] stutter tempo lock ");
+      Serial.println(next == StutterTimingMode::TempoLocked ? "engaged" : "released");
     }
   } else {
     chaosChordLatched = false;
     chaosChordHoldArmed = false;
 
-    // Check reseed button to increase chaos level
-    if (reseedPressed) {
-      delay(50);
-      if (!reseedButtonState && digitalRead(reseedButtonPin) == LOW) {
-        reseedButtonState = true;
-        reseedHoldConsumed = false;
-        reseedPressStart = millis();
-      }
-      if (reseedButtonState) {
-        unsigned long held = millis() - reseedPressStart;
-        if (!reseedHoldConsumed && held >= stagePresetHoldMillis) {
-          reseedHoldConsumed = true;
-          cycleDirtStackPreset(1, false);
-        }
-      }
-    } else {
-      if (reseedButtonState) {
-        reseedButtonState = false;
-        if (!reseedHoldConsumed) {
-          buttonPressCount++;
-          if (buttonPressCount > maxChaosLevel) buttonPressCount = maxChaosLevel;
-          noiseAmount = 20 + buttonPressCount * 5;
-          density = 5 + buttonPressCount * 10;
-          noiseAmount = constrain(noiseAmount, 20, 60);
-          density = constrain(density, 5, 100);
-          randomSeed(analogRead(randomSourcePin));
-        }
-      }
-      reseedHoldConsumed = false;
+    if (reseedPressed && !reseedButton.holdConsumed &&
+        (now - reseedButton.pressStart) >= stagePresetHoldMillis) {
+      reseedButton.holdConsumed = true;
+      cycleDirtStackPreset(1, false);
     }
 
-    // Check reset button to clear chaos
-    if (resetPressed) {
-      delay(50);
-      if (!resetButtonState && digitalRead(resetButtonPin) == LOW) {
-        resetButtonState = true;
-        resetHoldConsumed = false;
-        resetPressStart = millis();
-      }
-      if (resetButtonState) {
-        unsigned long held = millis() - resetPressStart;
-        if (!resetHoldConsumed && held >= stagePresetHoldMillis) {
-          resetHoldConsumed = true;
-          cycleDirtStackPreset(-1, false);
-        }
-      }
-    } else {
-      if (resetButtonState) {
-        resetButtonState = false;
-        if (!resetHoldConsumed) {
-          buttonPressCount = 0;
-          noiseAmount = 20;
-          density = 5;
-          randomSeed(analogRead(randomSourcePin));
-        }
-      }
-      resetHoldConsumed = false;
+    if (resetPressed && !resetButton.holdConsumed &&
+        (now - resetButton.pressStart) >= stagePresetHoldMillis) {
+      resetButton.holdConsumed = true;
+      cycleDirtStackPreset(-1, false);
     }
+  }
+
+  if (reseedButton.justReleased && !reseedButton.holdConsumed) {
+    applyReseedShortPress();
+  }
+  if (resetButton.justReleased && !resetButton.holdConsumed) {
+    applyResetShortPress();
   }
 
   // === Pot handling ===
@@ -179,7 +201,7 @@ void updateControl() {
   // Delay macro: slice the knob into four scenes so performers can stage the
   // texture without menu diving. We normalise the raw ADC reading into 0..1 and
   // then fan it out across the regions described in the README and design notes.
-  int potDelayValue = analogRead(potDelayPin);
+  int potDelayValue = analogRead(pin_config::potDelay);
   float delayNorm = static_cast<float>(potDelayValue) / 1023.0f;
 
   constexpr float noDelayFloor = 0.05f;      // Dead zone for instant dry
@@ -239,15 +261,15 @@ void updateControl() {
   bloomFeedbackBoost = bloomPush;
 
   // Feedback: convert to a 0.00–1.00 linear gain, then feed into the mixer.
-  int potFeedbackValue = analogRead(potFeedbackPin);
+  int potFeedbackValue = analogRead(pin_config::potFeedback);
   feedbackAmount = map(potFeedbackValue, 0, 1023, 0, 100) / 100.0;
   setFeedbackGain(1, feedbackAmount);
 
   // Noise + density pots override the ladder when turned. We still keep the
   // ladder counts so the LED bar reflects the most recent button action.
-  noiseAmount = map(analogRead(potNoiseAmountPin), 0, 1023, 0, 60);
-  density = map(analogRead(potDensityPin), 0, 1023, 0, 100);
-  mixAmount = map(analogRead(potMixPin), 0, 1023, 0, 100) / 100.0;
+  noiseAmount = map(analogRead(pin_config::potNoiseAmount), 0, 1023, 0, 60);
+  density = map(analogRead(pin_config::potDensity), 0, 1023, 0, 100);
+  mixAmount = map(analogRead(pin_config::potMix), 0, 1023, 0, 100) / 100.0;
 
   bool modsEnabled = chaosModulatorsEnabled();
 
@@ -278,6 +300,8 @@ void updateControl() {
                  snapshot);
 }
 
+int currentChaosLevel() { return buttonPressCount; }
+
 #ifdef __CPPCHECK__
 // See src/audio_pipeline.cpp for the rationale. The helper keeps cppcheck from
 // flagging our public control hooks as unused when it inspects this file solo.
@@ -288,4 +312,3 @@ void updateControl() {
 [[maybe_unused]] static const auto __cppcheck_controls_anchor =
     (__cppcheck_controls_reference(), 0);
 #endif
-

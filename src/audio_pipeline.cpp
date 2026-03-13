@@ -578,11 +578,18 @@ void processAudioQueues() {
       constrain(chaosSnapshot.secondaryVoicePan, -1.0f, 1.0f);
   const float blockBloomLimiterGain =
       constrain(chaosSnapshot.bloomLimiterGain, 0.25f, 1.75f);
-  const float blockBloomLimiterAmount =
+  float blockBloomLimiterAmount =
       constrain(blockBloomAmount * blockBloomLimiterGain, 0.0f, 1.0f);
   const float blockSecondaryFeedback =
       constrain(secondaryVoiceLevel + chaosSnapshot.secondaryFeedbackOffset, 0.0f,
                 1.0f);
+
+  // A macro-forced dry scene should stay dry even if stale bloom state or test
+  // scaffolding leaves wet-path knobs non-zero. Full dry means no return
+  // limiting on the mixed signal.
+  if (blockMixAmount <= 0.0f) {
+    blockBloomLimiterAmount = 0.0f;
+  }
 
   float baseFeedback = constrain(feedbackAmount + bloomFeedbackBoost, 0.0f, 0.99f);
   if (chaosModulatorsEnabled()) {

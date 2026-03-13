@@ -5,7 +5,7 @@ Welcome to the greasy-fingered half of DiceLoop. This folder is part builder's f
 ## How to roam this maze
 
 - **Start with the BOM.** Grab the core inventory in [`bom/dice-loop-bom.md`](bom/dice-loop-bom.md) for the story version or the CSV if you are sending it to a fab shop.
-- **Plan your wiring.** [`wiring/`](wiring) links signal names in the code (`src/main.cpp`) to physical copper.
+- **Plan your wiring.** [`wiring/`](wiring) links signal names in the code (`include/pin_config.h`) to physical copper.
 - **Tweak the control surface.** Everything about pots, buttons, and LED feedback lives under [`control-surface/`](control-surface).
 - **Pick a display.** LED bar or OLED? [`display-options/`](display-options) compares both with wiring call-outs.
 - **Box it up.** [`enclosure/`](enclosure) contains panel templates, standoff spacing, and punch lists.
@@ -14,16 +14,17 @@ Welcome to the greasy-fingered half of DiceLoop. This folder is part builder's f
 
 ## Hardware ↔ Firmware handshake
 
-Most signals are annotated in `src/main.cpp`, but here's the cheat sheet so you don't have to grep with soldering fumes in your eyes:
+Most signals are centralized in `include/pin_config.h`, but here's the cheat sheet so you don't have to grep with soldering fumes in your eyes:
 
 | Function | Teensy Pin | Notes |
 | --- | --- | --- |
 | Input Pots (Gain, Loop, Feedback, Dice, Chaos) | A0, A1, A3, A4, A5 | 10k linear pots; firmware expects 0–1023 raw. |
 | Chaos Buttons | D7, D8 | Active low with internal pull-ups enabled. |
+| Tap Footswitch | D6 | Optional normally-open tap switch to ground for external tempo. |
 | Entropy Seed Source | D9 | Configured as high-frequency PWM, then sampled with `analogRead()` for reseed entropy. |
 | LED Shift Register | D2 (SER), D3 (RCLK), D4 (SRCLK) | One 74HC595 drives 8 active LED segments; segments 9–10 are optional with extra hardware + firmware work. |
 | Optional OLED (SSD1306) | SDA (18), SCL (19) | I²C, 3.3 V. |
-| Audio Shield | Dedicated I²S pins | Keep the ribbon short to dodge clock jitter. |
+| Audio Shield | Dedicated I²S pins | Current firmware uses the left line-in channel as a mono source, then fans it into stereo-ish delay output. |
 
 Keep this table honest—if you reroute firmware pins, leave breadcrumbs here.
 

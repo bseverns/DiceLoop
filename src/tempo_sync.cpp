@@ -7,6 +7,7 @@
 #include "tempo_sync.h"
 
 #include "audio_pipeline.h"
+#include "pin_config.h"
 #include <Arduino.h>
 #include <cmath>
 
@@ -21,7 +22,6 @@
 #endif
 
 namespace {
-constexpr int tapTempoPin = 6;             // Spare digital pin for tap footswitch
 constexpr unsigned long minTapInterval = 60;   // ~1000 BPM ceiling guardrail
 constexpr unsigned long maxTapInterval = 2000; // ~30 BPM floor before we reset
 constexpr unsigned long tapDecayMillis = 2500; // fall back to pot tempo after idle
@@ -90,7 +90,7 @@ void resetTapAverager() {
 }
 
 void updateTapTempo() {
-  bool currentState = digitalRead(tapTempoPin);
+  bool currentState = digitalRead(pin_config::tapTempoButton);
   if (lastTapState == HIGH && currentState == LOW) {
     unsigned long now = millis();
     if (lastTapMillis != 0) {
@@ -159,8 +159,8 @@ void pollUsbMidi() {
 } // namespace
 
 void setupTempoSync() {
-  pinMode(tapTempoPin, INPUT_PULLUP);
-  lastTapState = digitalRead(tapTempoPin);
+  pinMode(pin_config::tapTempoButton, INPUT_PULLUP);
+  lastTapState = digitalRead(pin_config::tapTempoButton);
   resetTapAverager();
   externalTempoLatched = false;
   lastExternalUpdate = 0;

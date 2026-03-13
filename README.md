@@ -31,14 +31,14 @@ reverse-engineer the trickery.
   <em>Pots ride the analog bus (A0/A1/A3/A4/A5), buttons dive to pins 7 &amp; 8, the LED bar chews on D2–D4, and the optional OLED taps SDA/SCL on 18/19. Route the harness like this and nothing smokes.</em>
 </p>
 
-Pin assignments live in `src/controls.cpp` and `src/ui.cpp` so you can swap
-hardware without spelunking the whole codebase.
+Pin assignments live in `include/pin_config.h` so you can swap hardware without
+spelunking the whole codebase.
 
 ## Signal Flow Snapshot
 
 ```
 ┌──────────────┐   Audio Shield I²S   ┌───────────────────────┐
-│  Line / Mic  │ ───────────────────► │  filter1 (gentle HPF) │
+│ Line In (L)  │ ───────────────────► │  filter1 (gentle HPF) │
 └──────────────┘                      └──────────┬────────────┘
                                                │
                                                │      clean tap for manual mix
@@ -98,8 +98,9 @@ line-by-line so you can always map theory to firmware.
 There *is* an ADC in the loop—it just sits on the Teensy Audio Shield instead of
 on the microcontroller. `AudioControlSGTL5000 audioShield` is now part of the
 global rig inside `src/audio_pipeline.cpp`, and `setupAudioPipeline()` wakes the
-codec, flips the input to **line in**, dials a sane gain, and leaves you with a
-low-noise stereo feed ready for the chaos engine.
+codec, flips the input to **line in**, dials a sane gain, and feeds the current
+mono-in path from the left channel into the chaos engine. The output stays
+stereo-ish thanks to the dual delay taps, ghost crossfeed, and bloom/pan motion.
 
 ## Control Map & Chaos Knob Lore
 
@@ -130,10 +131,16 @@ analog pin so the statistical flavour changes in a way you can actually hear.
 
 **Stage presets (aka curated dirt stacks)**
 
-- Four slots live in the stage preset manager (see `include/stage_presets.h` and
-  `src/stage_presets.cpp`). Long-press the reseed button to hop to the next
-  slot or long-press reset to travel backwards. The selector calls the preset
-  helpers directly (`selectNextStagePreset()` / `selectPreviousStagePreset()` /
+- The firmware keeps two related concepts separate:
+  - a curated stack catalog in `src/audio_pipeline.cpp`
+  - four performer-facing preset slots in `src/stage_presets.cpp`
+- The preset slots ship seeded from four explicit factory picks:
+  `full_send`, `crush_hiccups`, `sine_smear`, and `fuzz_bloom`. Other curated
+  catalog entries remain loadable over serial without stealing a front-panel
+  slot.
+- Long-press the reseed button to hop to the next slot or long-press reset to
+  travel backwards. The selector calls the preset helpers directly
+  (`selectNextStagePreset()` / `selectPreviousStagePreset()` /
   `loadStagePreset()`), so the audio pipeline stays the single source of truth
   for which dirt stages are actually hot.
 - Each hop splashes an overlay: the LED bar paints the current stage mask and,
@@ -204,8 +211,9 @@ tempo sync helper listens for two kinds of pulses:
    the interval, average the last four swings, and hand the result to
    `setStutterBasePeriodMs()`. That means a quick stomp instantly retunes the
    tempo-locked density windows without touching the delay pot.
-2. **USB MIDI clock.** Drop 24 ppqn ticks into the Teensy over the USB Audio
-   device profile and the firmware measures a full quarter note, again feeding
+2. **USB MIDI clock.** Drop 24 ppqn ticks into the Teensy over the default
+   USB Audio + MIDI + Serial device profile and the firmware measures a full
+   quarter note, again feeding
    the base-period setter. Start/Continue messages reset the accumulator; Stop
    clears the clock counter so stale pulses don't ghost-write a new tempo.
 
@@ -302,8 +310,14 @@ new mask down the pipe and the gremlins obey.
 ### Stage-Morphing Presets
 
 The firmware now wires that registry into a tiny preset rack living in EEPROM.
-Four slots ship with curated blends (full chaos, crush+stutter, harmonic smear,
-and a fuzz-forward wash) and you can cycle them live:
+The curated stack catalog is larger than the front-panel slot count, so the box
+ships with four explicit factory slots while leaving the rest of the catalog
+available over serial:
+
+- `slot 0` → `full_send`
+- `slot 1` → `crush_hiccups`
+- `slot 2` → `sine_smear`
+- `slot 3` → `fuzz_bloom`
 
 - **Hold the reseed button (~0.6 s)** to step *forward* through the slots.
 - **Hold the reset button (~0.6 s)** to step *backward* without touching the
@@ -322,13 +336,22 @@ preset list                     # dump masks + stage combos
 preset load 2                   # instantly jump to slot 2
 preset save 1 bit_crush fuzz    # overwrite slot 1 with named stages
 preset mask 3 0x5               # force a mask (bits follow dirtStageBit order)
+preset stack list               # show the full curated catalog
+preset stack load stutter_gate  # audition a catalog stack without storing it
+preset stack save 0 full_send   # reseed a slot from a named curated stack
 ```
 
 `preset save` accepts the same case-insensitive IDs exposed by
 `dirtStageId()`, so your EEPROM playlist stays in sync with the code comments.
 `preset list` prints the active slot with a star so you can sanity check what
-the buttons will morph to next. Command spam is ignored gracefully—the parser
-only reacts when it sees the `preset` keyword.
+the buttons will morph to next, plus the factory stack each slot was originally
+seeded from. Command spam is ignored gracefully—the parser only reacts when it
+sees the `preset` keyword.
+
+By default the preset layer rejects a zero dirt-stage mask, so production
+builds never save a silent "(mute)" slot by accident. If you want that for bench
+testing, compile with `-DDICELOOP_ALLOW_MUTED_STAGE_MASK=1` and `preset mask`
+will accept `0x0`.
 
 ### Optional Chaos Modulators
 
@@ -380,8 +403,9 @@ pio run          # compile
 pio run -t upload  # flash it to the board
 ```
 
-`platform.ini` already targets the Teensy 4.0, so the above is enough to get
-code onto the hardware.
+`platformio.ini` already targets the Teensy 4.0 and defaults to the
+Audio + MIDI + Serial USB profile, so the above is enough to get code onto the
+hardware.
 
 ### Native Test Bench (No Hardware Required)
 
@@ -399,7 +423,8 @@ laptop before you grab a Teensy.
 
 > **Note:** All of the real analog-to-digital work happens inside the SGTL5000
 > codec on the Teensy Audio Shield. `setupAudioPipeline()` now explicitly wakes
-> the chip, routes the **line in** pair to the delay graph, and leaves the MCU's
+> the chip, routes the left **line in** channel into the current mono-in delay
+> graph, and leaves the MCU's
 > bare-metal ADC powered down. That silicon (and the PJRC `input_adc.cpp`
 > module) targets the older Kinetis parts, so we ship an `extra_script`
 > (`scripts/disable_audio_adc.py`) that uses PlatformIO build middleware to
@@ -450,7 +475,7 @@ library and fix upstream.
   – Drag blocks, wire them up, and export Arduino code. Compare the generated
   code to our hand-crafted setup in `src/audio_pipeline.cpp`.
 - [PlatformIO Teensy Docs](https://docs.platformio.org/en/latest/boards/teensy/teensy40.html)
-  – Explains the board configuration you inherit via `platform.ini`.
+  – Explains the board configuration you inherit via `platformio.ini`.
 - [Bit crushing primer](https://ccrma.stanford.edu/~jos/filters/Bit_Reduction_Distortion.html)
   – Stanford CCRMA notes on what actually happens when you nuke bit depth.
 - [Finite state machine for buttons](https://www.ganssle.com/debouncing.htm)

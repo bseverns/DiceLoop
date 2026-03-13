@@ -27,6 +27,9 @@ bool storeStagePreset(uint8_t slot, uint8_t mask, bool announce = true,
 uint8_t stagePresetSlotCount();
 uint8_t currentStagePresetIndex();
 uint8_t stagePresetMask(uint8_t slot);
+const char *factoryStagePresetStackId(uint8_t slot);
+bool stagePresetMuteSupported();
+void resetStagePresetsForTest();
 
 // Pump this each loop to read serial commands ("preset list", "preset load",
 // "preset save", etc.). The parser is forgiving and ignores unknown commands so

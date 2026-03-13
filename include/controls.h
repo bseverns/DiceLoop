@@ -7,9 +7,9 @@
 
 void setupControls();
 void updateControl();
+int currentChaosLevel();
 
 extern int noiseAmount; // 0–60 bit-crusher intensity scalar
 extern int density;     // 0–100 probability (%) that a sample gets crushed
 
 #endif
-

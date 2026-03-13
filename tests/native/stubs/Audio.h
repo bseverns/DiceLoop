@@ -2,8 +2,10 @@
 
 // Minimal Teensy Audio stubs for host-side tests.
 
+#include <array>
 #include <cstdint>
 #include <cstring>
+#include <deque>
 
 #ifndef AUDIO_BLOCK_SAMPLES
 #define AUDIO_BLOCK_SAMPLES 128
@@ -49,18 +51,60 @@ class AudioFilterStateVariable : public AudioStream {
 class AudioRecordQueue : public AudioStream {
   public:
     void begin() {}
-    bool available() const { return false; }
-    int16_t *readBuffer() { return nullptr; }
-    void freeBuffer() {}
+    bool available() const { return !buffers_.empty(); }
+    int16_t *readBuffer() {
+        if (buffers_.empty()) {
+            active_ = nullptr;
+            return nullptr;
+        }
+        active_ = &buffers_.front();
+        return active_->data();
+    }
+    void freeBuffer() {
+        if (active_ && !buffers_.empty() && active_ == &buffers_.front()) {
+            buffers_.pop_front();
+        }
+        active_ = nullptr;
+    }
+
+    void pushBuffer(const int16_t *data) {
+        std::array<int16_t, AUDIO_BLOCK_SAMPLES> block{};
+        if (data) {
+            std::memcpy(block.data(), data, sizeof(block));
+        }
+        buffers_.push_back(block);
+    }
+
+    void clearBuffers() {
+        buffers_.clear();
+        active_ = nullptr;
+    }
+
+  private:
+    std::deque<std::array<int16_t, AUDIO_BLOCK_SAMPLES>> buffers_;
+    std::array<int16_t, AUDIO_BLOCK_SAMPLES> *active_ = nullptr;
 };
 
 class AudioPlayQueue : public AudioStream {
   public:
     int16_t *getBuffer() { return buffer_; }
-    void playBuffer() {}
+    void playBuffer() {
+        std::memcpy(last_played_.data(), buffer_, sizeof(buffer_));
+        has_played_ = true;
+    }
+
+    const int16_t *lastPlayedBuffer() const { return last_played_.data(); }
+    bool hasPlayedBuffer() const { return has_played_; }
+    void clearPlayedBuffer() {
+        has_played_ = false;
+        std::memset(buffer_, 0, sizeof(buffer_));
+        last_played_.fill(0);
+    }
 
   private:
     int16_t buffer_[AUDIO_BLOCK_SAMPLES] = {0};
+    std::array<int16_t, AUDIO_BLOCK_SAMPLES> last_played_{};
+    bool has_played_ = false;
 };
 
 class AudioMixer4 : public AudioStream {

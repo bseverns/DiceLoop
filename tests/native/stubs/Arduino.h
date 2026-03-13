@@ -5,9 +5,11 @@
 // for tests to poke time/pin state deterministically.
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdint>
-#include <cstdlib>
 #include <cmath>
+#include <deque>
+#include <string>
 
 #ifndef PI
 #define PI 3.14159265358979323846f
@@ -41,6 +43,9 @@ inline unsigned long micros_value = 0;
 inline int digital_pins[64] = {HIGH};
 inline int analog_pins[64] = {0};
 inline int pin_modes[64] = {INPUT};
+inline std::deque<int> serial_input;
+inline std::string serial_output;
+inline uint32_t random_state = 1u;
 
 inline void reset_state() {
     millis_value = 0;
@@ -48,6 +53,9 @@ inline void reset_state() {
     std::fill(digital_pins, digital_pins + 64, HIGH);
     std::fill(analog_pins, analog_pins + 64, 0);
     std::fill(pin_modes, pin_modes + 64, INPUT);
+    serial_input.clear();
+    serial_output.clear();
+    random_state = 1u;
 }
 
 inline void set_millis(unsigned long value) { millis_value = value; }
@@ -74,6 +82,20 @@ inline void set_analog_pin(uint8_t pin, int value) {
         analog_pins[pin] = value;
     }
 }
+
+inline void push_serial_input(const char *text) {
+    if (!text) {
+        return;
+    }
+    while (*text) {
+        serial_input.push_back(static_cast<unsigned char>(*text));
+        ++text;
+    }
+}
+
+inline void clear_serial_output() { serial_output.clear(); }
+
+inline const std::string &serial_output_text() { return serial_output; }
 
 }  // namespace dice_loop_stub
 
@@ -110,20 +132,31 @@ inline int analogRead(uint8_t pin) {
 
 inline void analogWriteFrequency(uint8_t, uint32_t) {}
 
-inline void randomSeed(unsigned long seed) { std::srand(static_cast<unsigned int>(seed)); }
+inline void randomSeed(unsigned long seed) {
+    dice_loop_stub::random_state = static_cast<uint32_t>(seed);
+    if (dice_loop_stub::random_state == 0u) {
+        dice_loop_stub::random_state = 1u;
+    }
+}
+
+inline uint32_t next_random_state() {
+    dice_loop_stub::random_state =
+        dice_loop_stub::random_state * 1664525u + 1013904223u;
+    return dice_loop_stub::random_state;
+}
 
 inline long random(long max) {
     if (max <= 0) {
         return 0;
     }
-    return std::rand() % max;
+    return static_cast<long>(next_random_state() % static_cast<uint32_t>(max));
 }
 
 inline long random(long min, long max) {
     if (max <= min) {
         return min;
     }
-    return min + (std::rand() % (max - min));
+    return min + random(max - min);
 }
 
 template <typename T>
@@ -153,17 +186,52 @@ inline long map(long x, long in_min, long in_max, long out_min, long out_max) {
 class SerialMock {
   public:
     void begin(unsigned long) {}
-    int available() const { return 0; }
-    int read() { return -1; }
-    void print(const char *) {}
-    void print(int) {}
-    void print(uint8_t, int = 10) {}
-    void print(unsigned long, int = 10) {}
-    void print(float, int = 2) {}
-    void println(const char * = "") {}
-    void println(int) {}
-    void println(unsigned long, int = 10) {}
-    void println(float, int = 2) {}
+    int available() const { return static_cast<int>(dice_loop_stub::serial_input.size()); }
+    int read() {
+        if (dice_loop_stub::serial_input.empty()) {
+            return -1;
+        }
+        int value = dice_loop_stub::serial_input.front();
+        dice_loop_stub::serial_input.pop_front();
+        return value;
+    }
+    void print(const char *value) {
+        if (value) {
+            dice_loop_stub::serial_output += value;
+        }
+    }
+    void print(int value) { dice_loop_stub::serial_output += std::to_string(value); }
+    void print(uint8_t value, int base = 10) { print(static_cast<unsigned long>(value), base); }
+    void print(unsigned long value, int base = 10) {
+        char buffer[32];
+        if (base == HEX) {
+            std::snprintf(buffer, sizeof(buffer), "%lx", value);
+        } else {
+            std::snprintf(buffer, sizeof(buffer), "%lu", value);
+        }
+        dice_loop_stub::serial_output += buffer;
+    }
+    void print(float value, int precision = 2) {
+        char buffer[64];
+        std::snprintf(buffer, sizeof(buffer), "%.*f", precision, static_cast<double>(value));
+        dice_loop_stub::serial_output += buffer;
+    }
+    void println(const char *value = "") {
+        print(value);
+        dice_loop_stub::serial_output += '\n';
+    }
+    void println(int value) {
+        print(value);
+        dice_loop_stub::serial_output += '\n';
+    }
+    void println(unsigned long value, int base = 10) {
+        print(value, base);
+        dice_loop_stub::serial_output += '\n';
+    }
+    void println(float value, int precision = 2) {
+        print(value, precision);
+        dice_loop_stub::serial_output += '\n';
+    }
 };
 
 inline SerialMock Serial;

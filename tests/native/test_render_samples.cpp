@@ -6,6 +6,7 @@
 #include "controls.h"
 
 #include <cstdint>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -174,7 +175,47 @@ struct RenderConfig {
     const char *stack_id;
     float density_norm;
     float noise_norm;
+    int expected_peak;
+    float expected_rms;
+    int expected_zero_crossings;
 };
+
+struct RenderFingerprint {
+    int peak = 0;
+    float rms = 0.0f;
+    int zero_crossings = 0;
+};
+
+RenderFingerprint fingerprint_samples(const std::vector<int16_t> &samples) {
+    RenderFingerprint fingerprint{};
+    if (samples.empty()) {
+        return fingerprint;
+    }
+
+    double sum_squares = 0.0;
+    int16_t previous = samples.front();
+    for (size_t i = 0; i < samples.size(); ++i) {
+        int16_t sample = samples[i];
+        int magnitude = std::abs(static_cast<int>(sample));
+        if (magnitude > fingerprint.peak) {
+            fingerprint.peak = magnitude;
+        }
+        sum_squares += static_cast<double>(sample) * static_cast<double>(sample);
+
+        if (i > 0) {
+            if ((previous < 0 && sample >= 0) || (previous > 0 && sample <= 0)) {
+                ++fingerprint.zero_crossings;
+            }
+        }
+        if (sample != 0) {
+            previous = sample;
+        }
+    }
+
+    fingerprint.rms = static_cast<float>(
+        std::sqrt(sum_squares / static_cast<double>(samples.size())));
+    return fingerprint;
+}
 
 std::vector<int16_t> render_samples(const WavData &input, const RenderConfig &cfg) {
     std::vector<int16_t> output = input.samples;
@@ -221,20 +262,28 @@ void test_render_samples() {
     fs::create_directories(output_dir);
 
     const RenderConfig configs[] = {
-        {"full_send_dense", "full_send", 0.85f, 0.75f},
-        {"stutter_gate_sparse", "stutter_gate", 0.55f, 0.20f},
-        {"fuzz_bloom_warm", "fuzz_bloom", 0.35f, 0.65f},
-        {"crush_hiccups_mid", "crush_hiccups", 0.45f, 0.40f},
+        {"full_send_dense", "full_send", 0.85f, 0.75f, 26091, 4914.79f, 3140281},
+        {"stutter_gate_sparse", "stutter_gate", 0.55f, 0.20f, 26333, 542.471f, 1674312},
+        {"fuzz_bloom_warm", "fuzz_bloom", 0.35f, 0.65f, 32767, 4304.901f, 2107491},
+        {"crush_hiccups_mid", "crush_hiccups", 0.45f, 0.40f, 29523, 544.208f, 3163384},
     };
 
     for (const auto &cfg : configs) {
         WavData output = input;
         output.samples = render_samples(input, cfg);
+        RenderFingerprint fingerprint = fingerprint_samples(output.samples);
         std::string filename = "sample_" + std::string(cfg.id) + ".wav";
         fs::path output_path = output_dir / filename;
         TEST_ASSERT_TRUE_MESSAGE(write_wav(output_path, output),
                                  "Failed to write rendered WAV.");
         TEST_ASSERT_TRUE_MESSAGE(fs::exists(output_path),
                                  "Rendered WAV missing after write.");
+        TEST_ASSERT_INT_WITHIN_MESSAGE(64, cfg.expected_peak, fingerprint.peak,
+                                       "Rendered peak drifted.");
+        TEST_ASSERT_FLOAT_WITHIN_MESSAGE(8.0f, cfg.expected_rms, fingerprint.rms,
+                                         "Rendered RMS drifted.");
+        TEST_ASSERT_INT_WITHIN_MESSAGE(4000, cfg.expected_zero_crossings,
+                                       fingerprint.zero_crossings,
+                                       "Rendered zero-crossing count drifted.");
     }
 }

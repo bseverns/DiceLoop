@@ -53,6 +53,9 @@ namespace {
 constexpr uint8_t kPresetSlotCount = 4;
 constexpr uint8_t kPresetVersion = 1;
 constexpr uint32_t kPresetMagic = 0x44505253;  // "DPRS" – Dirt PReSet
+#ifndef DICELOOP_ALLOW_MUTED_STAGE_MASK
+#define DICELOOP_ALLOW_MUTED_STAGE_MASK 0
+#endif
 
 constexpr int kMagicAddress = 0;
 constexpr int kVersionAddress = kMagicAddress + sizeof(uint32_t);
@@ -61,11 +64,26 @@ constexpr int kActiveSlotAddress = kSlotCountAddress + sizeof(uint8_t);
 constexpr int kReservedAddress = kActiveSlotAddress + sizeof(uint8_t);
 constexpr int kMaskAddress = kReservedAddress + sizeof(uint8_t);
 
+constexpr const char *kFactoryPresetStackIds[kPresetSlotCount] = {
+    "full_send",
+    "crush_hiccups",
+    "sine_smear",
+    "fuzz_bloom",
+};
+
 uint8_t presetMasks[kPresetSlotCount];
 uint8_t activePreset = 0;
 bool stagePresetInitialised = false;
 
 char descriptionBuffer[96];
+
+uint8_t allowedStageMask() {
+  uint8_t mask = 0;
+  for (size_t i = 0; i < dirtStageCount(); ++i) {
+    mask |= dirtStageBit(static_cast<DirtStage>(i));
+  }
+  return mask;
+}
 
 bool equalsIgnoreCase(const char *a, const char *b) {
   if (!a || !b) {
@@ -114,15 +132,37 @@ const char *maskToDescription(uint8_t mask) {
 }
 
 uint8_t sanitiseMask(uint8_t mask) {
-  uint8_t allowedMask = 0;
-  for (size_t i = 0; i < dirtStageCount(); ++i) {
-    allowedMask |= dirtStageBit(static_cast<DirtStage>(i));
+  return static_cast<uint8_t>(mask & allowedStageMask());
+}
+
+bool maskIsAllowed(uint8_t mask) {
+  uint8_t cleanMask = sanitiseMask(mask);
+  if (cleanMask == 0) {
+    return DICELOOP_ALLOW_MUTED_STAGE_MASK;
   }
-  mask &= allowedMask;
-  if (mask == 0) {
-    mask = allowedMask;  // Never leave the engine silent unless explicitly zero
+  return true;
+}
+
+uint8_t fallbackMaskForSlot(uint8_t slot) {
+  if (slot < kPresetSlotCount) {
+    DirtStackInfo info;
+    const char *stackId = kFactoryPresetStackIds[slot];
+    if (curatedDirtStackById(stackId, &info)) {
+      uint8_t mask = sanitiseMask(info.mask);
+      if (mask != 0) {
+        return mask;
+      }
+    }
   }
-  return mask;
+  return allowedStageMask();
+}
+
+uint8_t normaliseStoredMask(uint8_t slot, uint8_t mask) {
+  uint8_t cleanMask = sanitiseMask(mask);
+  if (maskIsAllowed(cleanMask)) {
+    return cleanMask;
+  }
+  return fallbackMaskForSlot(slot);
 }
 
 void listCuratedStacks() {
@@ -170,11 +210,12 @@ bool applyCuratedStack(const DirtStackInfo &info, bool announce) {
 void copyDefaults() {
   for (size_t i = 0; i < kPresetSlotCount; ++i) {
     DirtStackInfo info;
-    uint8_t mask = 0;
-    if (curatedDirtStackInfo(i, &info)) {
-      mask = info.mask;
+    uint8_t mask = fallbackMaskForSlot(static_cast<uint8_t>(i));
+    const char *stackId = kFactoryPresetStackIds[i];
+    if (curatedDirtStackById(stackId, &info)) {
+      mask = sanitiseMask(info.mask);
     }
-    presetMasks[i] = sanitiseMask(mask);
+    presetMasks[i] = mask;
   }
   activePreset = 0;
 }
@@ -218,7 +259,7 @@ bool loadFromEEPROM() {
   for (size_t i = 0; i < kPresetSlotCount; ++i) {
     uint8_t value = 0;
     EEPROM.get(kMaskAddress + static_cast<int>(i), value);
-    presetMasks[i] = sanitiseMask(value);
+    presetMasks[i] = normaliseStoredMask(static_cast<uint8_t>(i), value);
   }
   if (storedActive >= kPresetSlotCount) {
     storedActive = 0;
@@ -258,6 +299,10 @@ bool parseStageListToMask(char **tokens, size_t count, uint8_t &mask) {
     result |= dirtStageBit(stage);
   }
   mask = sanitiseMask(result);
+  if (!maskIsAllowed(mask)) {
+    Serial.println("[presets] mute masks disabled in production builds");
+    return false;
+  }
   return true;
 }
 
@@ -271,6 +316,9 @@ bool parseMaskToken(const char *token, uint8_t &mask) {
     return false;
   }
   mask = sanitiseMask(static_cast<uint8_t>(value));
+  if (!maskIsAllowed(mask)) {
+    return false;
+  }
   return true;
 }
 
@@ -280,6 +328,9 @@ void listPresets() {
     Serial.print("  ");
     Serial.print(i);
     Serial.print(i == activePreset ? "* " : "  ");
+    Serial.print("factory:");
+    Serial.print(kFactoryPresetStackIds[i]);
+    Serial.print("  ");
     Serial.print("mask 0x");
     Serial.print(presetMasks[i], HEX);
     Serial.print("  stages: ");
@@ -486,6 +537,12 @@ bool storeStagePreset(uint8_t slot, uint8_t mask, bool announce, bool apply) {
     return false;
   }
   uint8_t cleanMask = sanitiseMask(mask);
+  if (!maskIsAllowed(cleanMask)) {
+    if (announce) {
+      Serial.println("[presets] mute masks disabled in production builds");
+    }
+    return false;
+  }
   presetMasks[slot] = cleanMask;
 #if DICELOOP_HAVE_EEPROM
   persistMasks();
@@ -511,6 +568,26 @@ uint8_t stagePresetMask(uint8_t slot) {
     return 0;
   }
   return presetMasks[slot];
+}
+
+const char *factoryStagePresetStackId(uint8_t slot) {
+  if (slot >= kPresetSlotCount) {
+    return nullptr;
+  }
+  return kFactoryPresetStackIds[slot];
+}
+
+bool stagePresetMuteSupported() {
+  return DICELOOP_ALLOW_MUTED_STAGE_MASK;
+}
+
+void resetStagePresetsForTest() {
+  copyDefaults();
+  activePreset = 0;
+  stagePresetInitialised = false;
+  serialIndex = 0;
+  serialBuffer[0] = '\0';
+  setActiveDirtStages(presetMasks[activePreset]);
 }
 
 void pollStagePresetSerial() {

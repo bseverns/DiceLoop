@@ -30,6 +30,7 @@ extern AudioEffectDelay delay1;            // Dual-tap delay line
 extern AudioFilterStateVariable filter1;   // High-pass conditioning filter
 extern AudioRecordQueue queueL, queueR;    // Post-delay dirty taps
 extern AudioRecordQueue cleanQueueL, cleanQueueR; // Pre-delay clean taps
+extern AudioPlayQueue outputQueueL, outputQueueR; // Post-mix output buffers
 extern AudioOutputI2S i2sOut;              // Audio shield line out
 extern audio_compat::Mixer4 feedbackMixer; // Combines dry signal + feedback loop
 extern AudioControlSGTL5000 audioShield;   // Codec controller (ADC/DAC front-end)
