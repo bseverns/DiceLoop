@@ -1,6 +1,9 @@
 # DiceLoop Hardware Lab
 
-Welcome to the greasy-fingered half of DiceLoop. This folder is part builder's field guide, part notebook of questionable experiments. Every document here tries to explain *why* a part exists in the rig, how it couples with the firmware, and what will break in spectacular fashion if you swap it. Use it as a map, but scribble your own notes in the margins.
+Welcome to the build-facing half of DiceLoop. This folder is a field guide for
+the physical rig: what each part does, which firmware surface it connects to,
+and which details are optional versus part of the default build. Use it as a
+map, then add your own notes as the hardware evolves.
 
 ## How to roam this maze
 
@@ -14,19 +17,21 @@ Welcome to the greasy-fingered half of DiceLoop. This folder is part builder's f
 
 ## Hardware ↔ Firmware handshake
 
-Most signals are centralized in `include/pin_config.h`, but here's the cheat sheet so you don't have to grep with soldering fumes in your eyes:
+Most signal assignments are centralized in `include/pin_config.h`. This table is
+the fast hardware-to-firmware translation layer:
 
 | Function | Teensy Pin | Notes |
 | --- | --- | --- |
-| Input Pots (Gain, Loop, Feedback, Dice, Chaos) | A0, A1, A3, A4, A5 | 10k linear pots; firmware expects 0–1023 raw. |
+| Input Pots (Delay, Feedback, Noise, Density, Mix) | A0, A1, A3, A4, A5 | 10k linear pots; firmware expects 0–1023 raw. |
 | Chaos Buttons | D7, D8 | Active low with internal pull-ups enabled. |
 | Tap Footswitch | D6 | Optional normally-open tap switch to ground for external tempo. |
 | Entropy Seed Source | D9 | Configured as high-frequency PWM, then sampled with `analogRead()` for reseed entropy. |
-| LED Shift Register | D2 (SER), D3 (RCLK), D4 (SRCLK) | One 74HC595 drives 8 active LED segments; segments 9–10 are optional with extra hardware + firmware work. |
-| Optional OLED (SSD1306) | SDA (18), SCL (19) | I²C, 3.3 V. |
+| LED Shift Register | D2 (SER), D3 (RCLK), D4 (SRCLK) | One 74HC595 drives the default 8-LED bar. |
+| Optional OLED (SSD1306) | SDA (18), SCL (19) | I²C only in the current firmware; no dedicated `RES`/`DC` pins are used. |
 | Audio Shield | Dedicated I²S pins | Current firmware uses the left line-in channel as a mono source, then fans it into stereo-ish delay output. |
 
-Keep this table honest—if you reroute firmware pins, leave breadcrumbs here.
+Keep this table honest. If you reroute pins or promote an optional hardware hook
+into a supported feature, update this file and `include/pin_config.h` together.
 
 ## Contributors
 

@@ -2,13 +2,12 @@
 
 ![PlatformIO Build status](https://github.com/bseverns/DiceLoop/actions/workflows/build.yml/badge.svg)
 
-This project straps a chaotic delay line onto a **Teensy 4.0** board and dares you to
-feed it audio. Clean tones go in, fractured echoes come out. Every knob twist
-and button jab nudges the randomness, so you're never standing in the same river
-twice. Use it to learn how real-time DSP works, or just to make your synth sound
-like it fell down the stairs. Think of the repo as a lab notebook where every
-subsystem is annotated, diagrammed, and cross-linked so you can both perform and
-reverse-engineer the trickery.
+DiceLoop is a teachable chaos delay built around a **Teensy 4.0** and the PJRC
+Audio Shield. The firmware takes a mono line-level input, pushes it through a
+delay and a small stack of dirt stages, and returns a stereo-ish output built
+from dual taps, crossfeed, and bloom-style feedback shaping. The repo is meant
+to do two jobs at once: give you something playable, and make the signal path
+legible enough that you can study or change it without guessing.
 
 ## Gear Checklist
 - **Teensy 4.0** with the PJRC Audio Shield with input and outputs wired
@@ -86,27 +85,26 @@ spelunking the whole codebase.
                             I²S out
 ```
 
-The `processAudioQueues()` function drains the `queue*` buffers, lets the chaos
-engine (`processDirt()`) chew on the dirty tap, blends that against the clean
-feed with any offsets coming from the hidden modulators, and finally pushes the
-mixed result into a pair of `AudioPlayQueue` nodes that ferry the audio straight
-to the DAC. The ASCII diagram is rough, but the code comments mirror it
-line-by-line so you can always map theory to firmware.
+Read the diagram from left to right: `filter1` conditions the incoming signal,
+`delay1` creates the repeat structure, and `processAudioQueues()` is where the
+firmware explicitly blends clean and dirty paths before writing samples back to
+the output queues. The ASCII map is intentionally simple; the matching comments
+in `src/audio_pipeline.cpp` provide the implementation-level detail.
 
 ### Analog Front-End (Where the ADC actually lives)
 
-There *is* an ADC in the loop—it just sits on the Teensy Audio Shield instead of
-on the microcontroller. `AudioControlSGTL5000 audioShield` is now part of the
-global rig inside `src/audio_pipeline.cpp`, and `setupAudioPipeline()` wakes the
-codec, flips the input to **line in**, dials a sane gain, and feeds the current
-mono-in path from the left channel into the chaos engine. The output stays
-stereo-ish thanks to the dual delay taps, ghost crossfeed, and bloom/pan motion.
+If you are tracing where analog becomes digital, start with the Audio Shield.
+The active ADC is the SGTL5000 codec, not the MCU's on-chip ADC. In
+`src/audio_pipeline.cpp`, `setupAudioPipeline()` brings up
+`AudioControlSGTL5000`, selects **line in**, and feeds the current mono input
+path from the left channel into the delay graph. The output is intentionally
+stereo-ish rather than true stereo-through.
 
 ## Control Map & Chaos Knob Lore
 
-These parameters are polled each loop and shoved straight into the audio path.
-The comments in `src/controls.cpp` walk through every scaling decision and why
-the chosen ranges work on Teensy 4.0 (3.3 V reference, 10-bit ADC, etc.).
+`updateControl()` polls these parameters every loop and maps them into DSP
+values. If you want to understand the exact curves and guardrails, read the
+inline comments in `src/controls.cpp`.
 
 | Physical control | Teensy pin | Firmware symbol | Range & behaviour |
 | ---------------- | ---------- | --------------- | ----------------- |
@@ -147,10 +145,10 @@ analog pin so the statistical flavour changes in a way you can actually hear.
   if an OLED is wired, the top line spells out `Stack <slot>/<count>` plus
   whether a button or footswitch triggered it. Slot + mask text sticks around
   for ~2 seconds so you can sanity-check patches mid-set.
-- Want hands-free navigation? Wire a spare jack to ground and call
-  `cycleDirtStackPreset(direction, /*viaFootswitch=*/true)` (or `loadStagePreset`
-  for explicit jumps) from your own footswitch handler; the overlay will tag the
-  jump as `foot` so you remember which stomps came from the floor.
+- There is no built-in preset footswitch input in the shipped hardware map.
+  If you want hands-free preset navigation, treat
+  `cycleDirtStackPreset(direction, /*viaFootswitch=*/true)` and
+  `loadStagePreset()` as extension hooks for your own handler.
 
 **Delay pot macro map**
 
@@ -172,10 +170,9 @@ C++ and Arduino APIs—poke around and hack it.
 
 ### Status Display Playground
 
-The old LED bar is still the quick-look chaos meter, but there is now room for a
-tiny OLED to narrate what the dirt engines are doing in real time. Wire any
-SSD1306 panel to SDA/SCL (pins `18`/`19`) plus 3.3 V and ground, then enable the
-firmware support with:
+The LED bar remains the default status display. If you want more context while
+debugging or performing, you can add an SSD1306 OLED on the shared I2C bus
+(`18`/`19`) plus 3.3 V and ground, then enable the display code with:
 
 ```ini
 ; platformio.ini
@@ -204,8 +201,8 @@ you know when the groove is latched to the room instead of the delay pot.
 
 ### External Tempo Sync (Tap + MIDI Clock)
 
-You asked for the chop grid to follow the outside world—now it does. The new
-tempo sync helper listens for two kinds of pulses:
+Tempo lock can follow either the panel timing or an external clock. The helper
+in `src/tempo_sync.cpp` currently listens for two pulse sources:
 
 1. **Tap footswitch (pin 6).** Each time the contact closes to ground we record
    the interval, average the last four swings, and hand the result to
@@ -479,7 +476,8 @@ library and fix upstream.
 - [Bit crushing primer](https://ccrma.stanford.edu/~jos/filters/Bit_Reduction_Distortion.html)
   – Stanford CCRMA notes on what actually happens when you nuke bit depth.
 - [Finite state machine for buttons](https://www.ganssle.com/debouncing.htm)
-  – Want to replace the naive `delay(50)` debounce? Start here.
+  – Helpful background for the non-blocking button state machine in
+  `src/controls.cpp`.
 
 ## Contributing / License
 I learned every trick and quick bitshift from others who were kind enough to share.

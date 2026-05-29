@@ -23,13 +23,13 @@ There is no single-character command surface (`h`, `m`, `c`, `d`) in current fir
 ```
 2026-03-09 14:12Z / BS
 [chaos] subsystem armed – modulators idle
-[presets] loaded slot 0 → bit_crush+stutter+fold+fuzz
+[presets] loaded slot 0 → bit_crush+wave_fold+stutter+fuzz
 preset list
 [presets] slots
-  0* mask 0xF  stages: bit_crush+stutter+fold+fuzz
-  1  mask 0x3  stages: bit_crush+stutter
-  2  mask 0x5  stages: bit_crush+fold
-  3  mask 0x9  stages: bit_crush+fuzz
+  0* factory:full_send  mask 0xF  stages: bit_crush+wave_fold+stutter+fuzz
+  1  factory:crush_hiccups  mask 0x5  stages: bit_crush+stutter
+  2  factory:sine_smear  mask 0x3  stages: bit_crush+wave_fold
+  3  factory:fuzz_bloom  mask 0xA  stages: wave_fold+fuzz
 ```
 
 Add more logs in chronological order. Treat this like the margins of a lab notebook.

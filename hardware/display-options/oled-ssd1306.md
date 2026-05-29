@@ -1,25 +1,32 @@
 # SSD1306 OLED Notes
 
-Optional but flashy: a 128×64 SSD1306 panel that mirrors loop state in text form. Here's how to wire and drive it without summoning gremlins.
+This display is optional. The current firmware can drive a small SSD1306 over
+I2C to show tempo source, BPM, knob-derived values, and preset overlays.
 
 ## Wiring
 - **VCC** → 3.3 V (do *not* feed 5 V clones unless you've confirmed the regulator)
 - **GND** → Star ground
 - **SCL** → Teensy 19
 - **SDA** → Teensy 18
-- **RES** → Teensy 5 (configurable; update firmware constant if you move it)
-- **DC** → Teensy 6
+
+The shipped implementation uses I2C only. There are no dedicated `RES` or `DC`
+signals in the current `src/ui.cpp` path.
 
 ## Firmware Hooks
-- Display code lives in `src/display.cpp` (future home—log file path changes here). For now, the driver stub hides inside `src/main.cpp` under `#ifdef ENABLE_OLED`.
-- Update this doc if you change buffer sizes or fonts so the next hacker knows what to rebuild.
+- Display code lives in `src/ui.cpp`.
+- Enable it with `-DDICELOOP_ENABLE_OLED=1` in `platformio.ini` or your local
+  build flags.
+- Defaults are `128x32` at I2C address `0x3C`. Override
+  `DICELOOP_OLED_WIDTH`, `DICELOOP_OLED_HEIGHT`, or
+  `DICELOOP_OLED_ADDRESS` only if your module differs.
 
 ## Mounting Tips
 - The OLED flex cable is fragile. Route it away from the chaos buttons to avoid accidental punches.
 - Keep at least 2 mm clearance behind the panel for airflow; these modules run warmer than they look.
 
 ## Troubleshooting
-- Blank screen? Check I²C pull-ups (4.7 kΩ recommended). Share photos of clean rework for future reference.
+- Blank screen? First check that the build actually enabled
+  `DICELOOP_ENABLE_OLED`, then verify I2C pull-ups and the device address.
 - Inverted colors at boot usually mean the display was reset mid-frame. Log the firmware timing fix when you squash it.
 
 Drop screenshots or `.png` exports in this folder. Bonus points for animated GIFs of the UI in action.

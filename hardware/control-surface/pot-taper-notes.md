@@ -1,14 +1,20 @@
 # Pot Taper Notes
 
-The firmware maps raw ADC values straight into the looping engine without fancy curves. That means our tactile feel lives or dies on the pot taper.
+The front panel has five pots, but they do not all behave the same way in
+firmware. Delay is a macro control with several regions, while the others map
+more directly into gain or probability-style parameters. Pot choice therefore
+affects feel as much as raw range.
 
 ## Stock Setup
 - **10 kΩ linear, 16 mm body** — keeps the ADC happy and the sweep predictable.
 - Firmware expects 0–3.3 V swing. Anything higher and you'll backfeed the Teensy inputs.
 
 ## Experiments to try
-- **Audio/log pots for Gain:** Might feel smoother in the first quarter turn. If you try it, record the subjective feel and whether the noise floor jumps when the wiper hits 50%.
-- **Reverse-log for Feedback:** Could provide finer control near self-oscillation. Update `src/main.cpp` scaling if you adopt it.
+- **Audio/log taper for Delay:** Probably not worth it. The delay control already
+  uses a custom macro curve in `src/controls.cpp`, so a non-linear taper may
+  make the first scene boundaries harder to hit.
+- **Reverse-log for Feedback:** Could provide finer control near
+  self-oscillation. Update the scaling in `src/controls.cpp` if you adopt it.
 
 ## Mechanical notes
 - D-shaft vs. smooth? Our panel files assume D-shaft knobs. If you go smooth, widen the knob holes in `enclosure/tabletop-enclosure/dice-loop-panel.dxf` accordingly.

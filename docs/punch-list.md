@@ -29,17 +29,16 @@ story.
   - future work stops assuming a full stereo-through architecture
   Next: keep the audio graph as-is and focus effort on control/test hardening.
 
-- [ ] Clean up remaining documentation drift.
+- [x] Clean up remaining documentation drift.
   Why: the repo mostly reads well, but some details are stale enough to erode
   trust.
-  Evidence:
-  - README says `platform.ini`; the file is `platformio.ini`
-  - `hardware/README.md` points people at `src/main.cpp` for signal mapping,
-    but the real pin definitions live across `src/controls.cpp`,
-    `src/tempo_sync.cpp`, and `src/ui.cpp`
-  - The hardware cheat sheet does not mention the tap footswitch on pin 6
-  Tackle it: keep chipping away now that the USB/stereo decisions are settled.
-  Deliverable: README + hardware docs that match the shipped firmware exactly.
+  Done:
+  - top-level and hardware docs now describe the mono-in / stereo-ish signal
+    path consistently
+  - OLED docs and generated schematic artifacts now reflect the current I2C-only
+    wiring instead of the older `RES`/`DC` model
+  - hardware control, LED bar, and serial docs now match the shipped firmware
+    gestures and preset naming
 
 ## P1: Harden the control surface path
 
@@ -151,4 +150,4 @@ story.
 - [ ] Remove blocking debounce and add `test_controls.cpp`.
 - [x] Add at least one MIDI-clock native test.
 - [x] Add one `processAudioQueues()` behavior test.
-- [ ] Do one docs sync pass after those decisions land.
+- [x] Do one docs sync pass after those decisions land.

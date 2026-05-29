@@ -256,11 +256,10 @@ def build_blocks(include_oled: bool) -> List[Block]:
             240,
             "Teensy 4.0",
             [
-                "A0 A1 A3 A4 A5 (pots)",
+                "A0 A1 A3 A4 A5 (panel pots)",
                 "D2 D3 D4 (74HC595)",
-                "D7 D8 (chaos buttons)",
+                "D6 D7 D8 (switch inputs)",
                 "D9 (entropy seed source)",
-                "D5 D6 (OLED RES/DC)",
                 "SDA 18 / SCL 19 (I2C)",
                 "3.3V, GND",
             ],
@@ -288,8 +287,8 @@ def build_blocks(include_oled: bool) -> List[Block]:
             150,
             "Control Pots (x5)",
             [
-                "Gain / Loop / Feedback",
-                "Dice / Chaos (10k lin)",
+                "Delay / Feedback / Noise",
+                "Density / Mix (10k lin)",
                 "3.3V -> pot high",
                 "GND -> pot low",
                 "Wipers -> A0/A1/A3/A4/A5",
@@ -300,11 +299,12 @@ def build_blocks(include_oled: bool) -> List[Block]:
             820,
             390,
             320,
-            110,
-            "Chaos Buttons (x2)",
+            130,
+            "Switch Inputs",
             [
                 "Momentary to GND",
-                "D7, D8 (pull-ups)",
+                "D7, D8 chaos buttons",
+                "D6 tap footswitch (optional)",
             ],
         ),
         Block(
@@ -333,7 +333,6 @@ def build_blocks(include_oled: bool) -> List[Block]:
                 "SSD1306 OLED (optional)",
                 [
                     "SDA 18 / SCL 19",
-                    "RES D5 / DC D6",
                     "3.3V, GND",
                 ],
             )
@@ -371,7 +370,7 @@ def build_wires(blocks: List[Block], include_oled: bool) -> List[Wire]:
             Wire(
                 by_id["teensy"].right_anchor(150),
                 by_id["oled"].left_anchor(0),
-                "SDA/SCL + D5/D6 + 3.3V + GND",
+                "SDA/SCL + 3.3V + GND",
             )
         )
     return wires
@@ -398,12 +397,13 @@ def render_md(include_oled: bool) -> str:
     rows = [
         "| Teensy 4.0 | Control pots | A0/A1/A3/A4/A5, 3.3V, GND |",
         "| Teensy 4.0 | Chaos buttons | D7, D8, GND (internal pull-ups) |",
+        "| Teensy 4.0 | Tap footswitch (optional) | D6, GND (internal pull-up) |",
         "| Teensy 4.0 | LED bar + 74HC595 | D2 (SER), D3 (RCLK), D4 (SRCLK), 3.3V, GND |",
         "| Teensy 4.0 | Audio shield | I2S stack, MCLK 23, SCK 13, SDA/SCL |",
     ]
     if include_oled:
         rows.append(
-            "| Teensy 4.0 | SSD1306 OLED | SDA 18, SCL 19, D5 (RES), D6 (DC), 3.3V, GND |"
+            "| Teensy 4.0 | SSD1306 OLED | SDA 18, SCL 19, 3.3V, GND |"
         )
     return "\n".join(
         [
@@ -486,8 +486,9 @@ def build_kicad_symbols(include_oled: bool) -> List[KicadSymbol]:
         KicadSymbol(
             name="DiceLoop:Chaos_Buttons",
             ref_prefix="SW",
-            value="Chaos_Buttons",
+            value="Switch_Inputs",
             pins=[
+                "D6",
                 "D7",
                 "D8",
                 "GND",
@@ -515,8 +516,6 @@ def build_kicad_symbols(include_oled: bool) -> List[KicadSymbol]:
                 pins=[
                     "SDA",
                     "SCL",
-                    "D5",
-                    "D6",
                     "3V3",
                     "GND",
                 ],

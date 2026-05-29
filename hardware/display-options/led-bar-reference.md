@@ -1,22 +1,27 @@
 # LED Bar Reference
 
-The LED bar is the default loop status display. This file exists so you can rewire or replace it without reverse-engineering the firmware every time.
+The LED bar is the default status display. Its meaning is intentionally simple:
+in normal play it shows chaos level, and during preset selection it briefly
+switches to a dirt-stage mask overlay.
 
-## Segment Mapping
-| Segment | Shift Register Output | Meaning in Firmware |
+## Normal Mode
+`renderStatusUI()` passes a `0..8` level into `updateLEDBar()`, which lights the
+lowest `N` segments. When chaos modulators are enabled, the UI forces all 8
+segments on as a clear "mods engaged" indicator.
+
+## Preset Overlay Mode
+When the preset selector overlay is active, the LED bar stops acting like a
+level meter and instead shows the active dirt-stage mask.
+
+| Dirt stage | LED pair | Meaning in firmware |
 | --- | --- | --- |
-| 1 (bottom) | QA | Input level floor |
-| 2 | QB | Input level low |
-| 3 | QC | Input level mid |
-| 4 | QD | Input level hot |
-| 5 | QE | Loop headroom |
-| 6 | QF | Loop density |
-| 7 | QG | Feedback warning |
-| 8 | QH | Chaos modulation depth |
-| 9 | QH chained or manual | Dice status |
-| 10 (top) | QH chained or manual | Clip alert |
+| Bit crush | Segments 1–2 | First pair lit when `DirtStage::BitCrush` is active |
+| Wavefold | Segments 3–4 | Second pair lit when `DirtStage::WaveFold` is active |
+| Stutter | Segments 5–6 | Third pair lit when `DirtStage::Stutter` is active |
+| Fuzz | Segments 7–8 | Fourth pair lit when `DirtStage::Fuzz` is active |
 
-Update this map if you shuffle the order—the firmware expects the table above when it packs bits.
+That pairing comes from `maskToLedPattern()` in `src/ui.cpp`. If you re-order
+stages in code, update this table too.
 
 ## Brightness Tweaks
 - Default resistors: 330 Ω. Drop to 220 Ω for sunlight gigs, but log the forward voltage per color so we don't toast the bar.

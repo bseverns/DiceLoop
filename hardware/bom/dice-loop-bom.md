@@ -6,7 +6,7 @@ This is the conversational bill of materials—why each part exists, what corner
 | --- | ---- | ---------------- | -------------- | ----- |
 | 1 | Teensy 4.0 | PJRC | Brains + DSP grunt. | Needs the audio shield header pins installed. |
 | 1 | PJRC Audio Shield (Rev D) | PJRC | I²S codec and SD slot for sample juggling. | Solder the headphone amp jumpers if you want stereo outs. |
-| 5 | 10 kΩ Linear Potentiometer (16 mm) | Tayda / Bourns | Controls gain, loop length, feedback, dice modulation, chaos depth. | Log pots will make the firmware scaling weird; stick to linear unless you patch the curves. |
+| 5 | 10 kΩ Linear Potentiometer (16 mm) | Tayda / Bourns | Controls delay, feedback, noise, density, and mix. | Linear taper matches the current control mapping best; see `hardware/control-surface/pot-taper-notes.md` before experimenting. |
 | 2 | Momentary Pushbutton (tactile or stomp) | C&K / Tayda | Chaos triggers. | If you use footswitches, debounce caps might be required—document in control-surface notes. |
 | 1 | 74HC595 Shift Register | TI / Nexperia | Drives the LED bar with three pins. | Socket it if you plan to mod the LED array. |
 | 1 | 10-segment LED Bar Graph (2x5) | Kingbright | Loop level display. | Firmware currently lights 8 segments via one 74HC595; segments 9-10 need an added driver path. Diffuse with translucent tape for even glow. |
@@ -17,7 +17,9 @@ This is the conversational bill of materials—why each part exists, what corner
 
 ## Optional candy
 - **Expression pedal jack:** Normalled to the Chaos pot. Document calibration if you add it.
-- **MIDI I/O:** The firmware is ready for serial MIDI taps—log any opto-isolator choices here.
+- **DIN MIDI I/O:** Not part of the default build. The shipped firmware already
+  understands USB MIDI clock; log opto-isolator choices here only if you add a
+  separate DIN path.
 
 ## Procurement checklist
 - [ ] Order the CSV version (`panel-bom.csv`) if you need automated assembly.
