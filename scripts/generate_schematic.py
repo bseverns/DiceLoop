@@ -146,13 +146,15 @@ def render_kicad_symbol(symbol: KicadSymbol) -> str:
     bottom = y_start - (pin_count - 1) * pin_pitch - 2.54
     left = -1.27
     right = 22.86
+    unit_name = f'{symbol.name.split(":")[-1]}_1_1'
     lines = [
         f'\t\t(symbol "{symbol.name}"',
         "\t\t\t(pin_names",
         "\t\t\t\t(offset 1.016)",
+        "\t\t\t\t(hide yes)",
         "\t\t\t)",
         "\t\t\t(pin_numbers",
-        "\t\t\t\t(offset 1.016)",
+        "\t\t\t\t(hide yes)",
         "\t\t\t)",
         "\t\t\t(exclude_from_sim no)",
         "\t\t\t(in_bom yes)",
@@ -200,7 +202,7 @@ def render_kicad_symbol(symbol: KicadSymbol) -> str:
         "\t\t\t\t\t(hide yes)",
         "\t\t\t\t)",
         "\t\t\t)",
-        f'\t\t\t(symbol "{symbol.value}_1_1"',
+        f'\t\t\t(symbol "{unit_name}"',
         "\t\t\t\t(rectangle",
         f"\t\t\t\t\t(start {kfmt(left)} {kfmt(top)})",
         f"\t\t\t\t\t(end {kfmt(right)} {kfmt(bottom)})",
